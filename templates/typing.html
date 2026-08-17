@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+{% block title %}Typing Test{% endblock %}
+
+{% block extra_css %}
+<style>
+#typing-display {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  line-height: 1.9;
+  letter-spacing: 0.04em;
+  word-break: break-word;
+}
+.char { color: var(--text-muted); }
+.char.correct { color: var(--accent); }
+.char.wrong { color: var(--danger); background: hsla(0,84%,60%,0.15); border-radius: 2px; }
+.char.current { background: var(--primary); color: white; border-radius: 2px; animation: blink 1s ease infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.5} }
+#typing-input { position: absolute; opacity: 0; pointer-events: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+  <h1 class="page-title">⌨️ Typing Test</h1>
+  <p class="page-subtitle">Improve your typing speed and accuracy — track WPM in real-time</p>
+</div>
+
+<!-- Config Bar -->
+<div class="card mb-20 animate-in">
+  <div class="flex items-center gap-20" style="flex-wrap:wrap">
+    <div>
+      <div class="form-label">Mode</div>
+      <div class="toggle-group">
+        {% for m in modes %}
+        <button class="toggle-btn {% if loop.first %}active{% endif %}"
+                onclick="setMode('{{ m.id }}', this)" id="mode-{{ m.id }}">
+          {{ m.icon }} {{ m.label }}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+    <div>
+      <div class="form-label">Duration</div>
+      <div class="toggle-group">
+        {% for d in durations %}
+        <button class="toggle-btn {% if d == 60 %}active{% endif %}"
+                onclick="setDuration({{ d }}, this)">
+          {{ d }}s
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+    <button class="btn btn-secondary" onclick="loadNewText()" style="margin-top:16px">
+      <i data-lucide="refresh-cw"></i> New Text
+    </button>
+  </div>
+</div>
+
+<!-- Live Stats -->
+<div class="grid-4 mb-20 animate-in" style="animation-delay:0.1s">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:hsla(250,84%,60%,0.15)">🚀</div>
+    <div class="stat-info">
+      <div class="stat-value" id="live-wpm">0</div>
+      <div class="stat-label">WPM (Live)</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:hsla(142,71%,45%,0.15)">🎯</div>
+    <div class="stat-info">
+      <div class="stat-value" id="live-accuracy">100%</div>
+      <div class="stat-label">Accuracy</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:hsla(38,92%,58%,0.15)">⏱️</div>
+    <div class="stat-info">
+      <div class="stat-value" id="live-timer">—</div>
+      <div class="stat-label">Time Remaining</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:hsla(165,82%,51%,0.15)">🏆</div>
+    <div class="stat-info">
+      <div class="stat-value" id="personal-best">— WPM</div>
+      <div class="stat-label">Personal Best</div>
+    </div>
+  </div>
+</div>
+
+<!-- Typing Area -->
+<div class="card mb-20 animate-in" style="animation-delay:0.15s;cursor:text" onclick="focusInput()" id="typing-card">
+  <!-- Loading -->
+  <div id="text-loading" class="loading-overlay">
+    <div class="spinner"></div><span>Loading text...</span>
+  </div>
+
+  <!-- Display -->
+  <div id="typing-display" style="min-height:100px;display:none;user-select:none"></div>
+
+  <input type="text" id="typing-input" aria-label="Typing input" autocomplete="off" autocorrect="off"
+         autocapitalize="off" spellcheck="false" />
+
+  <!-- Status -->
+  <div class="flex items-center justify-between mt-16">
+    <div id="typing-status" style="font-size:14px;color:var(--text-muted)">
+      Click anywhere to start typing
+    </div>
+    <div style="display:flex;gap:8px">
+      <span class="badge badge-success" id="correct-count">0 correct</span>
+      <span class="badge badge-danger" id="wrong-count">0 wrong</span>
+    </div>
+  </div>
+</div>
+
+<!-- Results (shown after test) -->
+<div id="typing-results" style="display:none" class="animate-in">
+  <div class="card" style="background:var(--gradient-primary);border:none;color:white;text-align:center;padding:32px;margin-bottom:20px">
+    <div id="pb-badge" style="display:none;background:rgba(255,255,255,0.2);display:inline-block;
+                               padding:4px 16px;border-radius:var(--radius-full);font-size:13px;
+                               font-weight:700;margin-bottom:12px">🏆 NEW PERSONAL BEST!</div>
+    <div style="font-size:64px;font-weight:900" id="result-wpm">0</div>
+    <div style="font-size:18px;opacity:0.8">Words Per Minute</div>
+    <div style="display:flex;justify-content:center;gap:32px;margin-top:20px">
+      <div><div style="font-size:24px;font-weight:700" id="result-accuracy">100%</div><div style="opacity:0.7;font-size:13px">Accuracy</div></div>
+      <div><div style="font-size:24px;font-weight:700" id="result-correct">0</div><div style="opacity:0.7;font-size:13px">Correct</div></div>
+      <div><div style="font-size:24px;font-weight:700" id="result-wrong">0</div><div style="opacity:0.7;font-size:13px">Wrong</div></div>
+    </div>
+  </div>
+  <div class="flex gap-12" style="flex-wrap:wrap">
+    <button class="btn btn-primary btn-lg flex-1" onclick="restartTest()">🔄 Try Again</button>
+    <button class="btn btn-secondary btn-lg flex-1" onclick="loadNewText()">📝 New Text</button>
+  </div>
+</div>
+
+<!-- History -->
+<div class="card mt-20 animate-in" style="animation-delay:0.2s">
+  <div class="card-title mb-16">📈 Typing History</div>
+  <div id="typing-history"><div class="loading-overlay"><div class="spinner"></div></div></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let typingState = {
+  text: '', mode: 'sentences', duration: 60,
+  started: false, finished: false,
+  timer: null, startTime: null,
+  correctChars: 0, wrongChars: 0, currentIndex: 0,
+  timeLeft: 60,
+};
+
+// ── Setup ────────────────────────────────────────
+function setMode(m, btn) {
+  typingState.mode = m;
+  btn.closest('.toggle-group').querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadNewText();
+}
+
+function setDuration(d, btn) {
+  typingState.duration = d;
+  typingState.timeLeft = d;
+  btn.closest('.toggle-group').querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (!typingState.started) {
+    document.getElementById('live-timer').textContent = `${d}s`;
+  }
+  resetTest();
+}
+
+async function loadNewText() {
+  document.getElementById('text-loading').style.display = 'flex';
+  document.getElementById('typing-display').style.display = 'none';
+  document.getElementById('typing-results').style.display = 'none';
+
+  try {
+    const data = await apiCall('/api/typing/text', 'POST', { mode: typingState.mode });
+    typingState.text = data.text.trim();
+    renderText();
+    resetTest();
+    document.getElementById('typing-status').textContent = 'Click anywhere to start typing';
+  } catch {
+    typingState.text = 'The quick brown fox jumps over the lazy dog. Practice makes perfect when you stay consistent.';
+    renderText();
+    resetTest();
+  }
+  document.getElementById('text-loading').style.display = 'none';
+  document.getElementById('typing-display').style.display = 'block';
+}
+
+function renderText() {
+  const display = document.getElementById('typing-display');
+  display.innerHTML = typingState.text.split('').map((ch, i) =>
+    `<span class="char" id="c${i}">${ch === ' ' ? '\u00A0' : ch}</span>`
+  ).join('');
+  updateCursor(0);
+}
+
+function updateCursor(index) {
+  document.querySelectorAll('.char.current').forEach(el => el.classList.remove('current'));
+  const el = document.getElementById(`c${index}`);
+  if (el) { el.classList.add('current'); el.scrollIntoView({ block: 'nearest' }); }
+}
+
+function resetTest() {
+  typingState.started = false;
+  typingState.finished = false;
+  typingState.currentIndex = 0;
+  typingState.correctChars = 0;
+  typingState.wrongChars = 0;
+  typingState.timeLeft = typingState.duration;
+  clearInterval(typingState.timer);
+
+  document.getElementById('live-wpm').textContent = '0';
+  document.getElementById('live-accuracy').textContent = '100%';
+  document.getElementById('live-timer').textContent = `${typingState.duration}s`;
+  document.getElementById('correct-count').textContent = '0 correct';
+  document.getElementById('wrong-count').textContent = '0 wrong';
+  document.getElementById('typing-results').style.display = 'none';
+
+  // Reset char styles
+  document.querySelectorAll('.char').forEach(el => {
+    el.className = 'char';
+  });
+  updateCursor(0);
+
+  document.getElementById('typing-input').value = '';
+}
+
+function focusInput() { document.getElementById('typing-input').focus(); }
+
+// ── Input Handler ────────────────────────────────
+document.getElementById('typing-input').addEventListener('keydown', (e) => {
+  if (typingState.finished) return;
+  if (e.key === 'Tab') { e.preventDefault(); return; }
+
+  if (!typingState.started && e.key !== 'Backspace') {
+    startTest();
+  }
+});
+
+document.getElementById('typing-input').addEventListener('input', (e) => {
+  if (typingState.finished || !typingState.started) return;
+
+  const typed = e.data;
+  if (!typed) {
+    // Backspace — go back
+    if (typingState.currentIndex > 0) {
+      typingState.currentIndex--;
+      const ch = document.getElementById(`c${typingState.currentIndex}`);
+      if (ch) { ch.className = 'char'; }
+      if (ch?.classList.contains('wrong')) typingState.wrongChars = Math.max(0, typingState.wrongChars - 1);
+      else if (typingState.correctChars > 0) typingState.correctChars--;
+      updateCursor(typingState.currentIndex);
+    }
+    e.target.value = '';
+    return;
+  }
+
+  const expected = typingState.text[typingState.currentIndex];
+  const ch = document.getElementById(`c${typingState.currentIndex}`);
+
+  if (typed === expected) {
+    ch.className = 'char correct';
+    typingState.correctChars++;
+  } else {
+    ch.className = 'char wrong';
+    typingState.wrongChars++;
+  }
+
+  typingState.currentIndex++;
+  e.target.value = '';
+
+  if (typingState.currentIndex >= typingState.text.length) {
+    finishTest();
+    return;
+  }
+
+  updateCursor(typingState.currentIndex);
+  updateLiveStats();
+});
+
+function startTest() {
+  typingState.started = true;
+  typingState.startTime = Date.now();
+  document.getElementById('typing-status').textContent = 'Typing...';
+
+  typingState.timer = setInterval(() => {
+    typingState.timeLeft--;
+    document.getElementById('live-timer').textContent = `${typingState.timeLeft}s`;
+
+    if (typingState.timeLeft <= 0) { finishTest(); }
+    else { updateLiveStats(); }
+  }, 1000);
+}
+
+function updateLiveStats() {
+  const elapsed = (Date.now() - typingState.startTime) / 1000 / 60;
+  const words = typingState.correctChars / 5;
+  const wpm = elapsed > 0 ? Math.round(words / elapsed) : 0;
+  const total = typingState.correctChars + typingState.wrongChars;
+  const acc = total > 0 ? Math.round((typingState.correctChars / total) * 100) : 100;
+
+  document.getElementById('live-wpm').textContent = wpm;
+  document.getElementById('live-accuracy').textContent = `${acc}%`;
+  document.getElementById('correct-count').textContent = `${typingState.correctChars} correct`;
+  document.getElementById('wrong-count').textContent = `${typingState.wrongChars} wrong`;
+}
+
+async function finishTest() {
+  if (typingState.finished) return;
+  typingState.finished = true;
+  clearInterval(typingState.timer);
+
+  const elapsed = (Date.now() - typingState.startTime) / 1000 / 60;
+  const words = typingState.correctChars / 5;
+  const wpm = elapsed > 0 ? Math.round(words / elapsed) : 0;
+  const total = typingState.correctChars + typingState.wrongChars;
+  const acc = total > 0 ? Math.round((typingState.correctChars / total) * 100) : 100;
+
+  document.getElementById('result-wpm').textContent = wpm;
+  document.getElementById('result-accuracy').textContent = `${acc}%`;
+  document.getElementById('result-correct').textContent = typingState.correctChars;
+  document.getElementById('result-wrong').textContent = typingState.wrongChars;
+  document.getElementById('typing-results').style.display = 'block';
+  document.getElementById('typing-status').textContent = 'Test complete! 🎉';
+
+  // Submit result
+  try {
+    const result = await apiCall('/api/typing/submit', 'POST', {
+      wpm, accuracy: acc,
+      correct_chars: typingState.correctChars,
+      wrong_chars: typingState.wrongChars,
+      mode: typingState.mode,
+      duration: typingState.duration,
+    });
+    if (result.is_personal_best) {
+      document.getElementById('pb-badge').style.display = 'inline-block';
+      showToast(`🏆 New personal best: ${wpm} WPM!`, 'success');
+    }
+    if (result.new_badges.length) showToast('🏅 Badge unlocked!', 'success');
+    loadHistory();
+  } catch {}
+}
+
+function restartTest() { resetTest(); document.getElementById('typing-input').focus(); }
+
+async function loadHistory() {
+  try {
+    const data = await apiCall('/api/typing/history');
+    document.getElementById('personal-best').textContent = `${data.personal_best} WPM`;
+    const el = document.getElementById('typing-history');
+    if (!data.results.length) {
+      el.innerHTML = '<p class="text-muted text-small">No typing tests yet. Start your first test!</p>';
+      return;
+    }
+    el.innerHTML = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+      <thead><tr style="font-size:12px;color:var(--text-muted);text-align:left">
+        <th style="padding:8px;border-bottom:1px solid var(--border)">Date</th>
+        <th style="padding:8px;border-bottom:1px solid var(--border)">WPM</th>
+        <th style="padding:8px;border-bottom:1px solid var(--border)">Accuracy</th>
+        <th style="padding:8px;border-bottom:1px solid var(--border)">Mode</th>
+        <th style="padding:8px;border-bottom:1px solid var(--border)">Duration</th>
+        <th style="padding:8px;border-bottom:1px solid var(--border)">PB?</th>
+      </tr></thead>
+      <tbody>${data.results.map(r => `<tr style="font-size:14px;border-bottom:1px solid var(--border)">
+        <td style="padding:8px;color:var(--text-muted)">${r.date.substring(0,10)}</td>
+        <td style="padding:8px;font-weight:700;color:var(--primary-light)">${r.wpm}</td>
+        <td style="padding:8px;color:${r.accuracy>=90?'var(--success)':'var(--text-secondary)'}">${r.accuracy}%</td>
+        <td style="padding:8px;color:var(--text-secondary)">${r.mode}</td>
+        <td style="padding:8px;color:var(--text-muted)">${r.duration}s</td>
+        <td style="padding:8px">${r.is_personal_best ? '🏆' : '—'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch {}
+}
+
+// Init
+loadNewText();
+loadHistory();
+</script>
+{% endblock %}

@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% block title %}AI Coach{% endblock %}
+
+{% block extra_css %}
+<style>
+#chat-messages {
+  height: 500px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  scroll-behavior: smooth;
+}
+
+.msg-user {
+  align-self: flex-end;
+  max-width: 75%;
+  background: var(--gradient-primary);
+  color: white;
+  padding: 12px 16px;
+  border-radius: 18px 18px 4px 18px;
+  font-size: 14px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.msg-ai {
+  align-self: flex-start;
+  max-width: 80%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 12px 16px;
+  border-radius: 18px 18px 18px 4px;
+  font-size: 14px;
+  line-height: 1.7;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.msg-ai.typing {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.msg-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+  font-weight: 600;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="page-title">🤖 AI Coach</h1>
+      <p class="page-subtitle">Your personal AI tutor — ask anything, practice anything</p>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="clearChat()">🗑️ Clear Chat</button>
+  </div>
+</div>
+
+<div class="grid-2" style="gap:20px;grid-template-columns:1fr 300px">
+  <!-- Chat Area -->
+  <div class="card animate-in" style="padding:0;overflow:hidden">
+    <div id="chat-messages">
+      <div style="align-self:flex-start;max-width:80%">
+        <div class="msg-label">🤖 SkillRise AI Coach</div>
+        <div class="msg-ai">
+Namaste! 🙏 I'm your AI Coach, here to help you learn and grow!
+
+I can help you with:
+• 📚 Explain any topic simply
+• 🧠 Generate practice questions
+• ✏️ Correct your English
+• 💻 Help with programming & code
+• 📅 Create a study plan
+• 🎯 Tell you what to study next
+
+What would you like to learn today?
+        </div>
+      </div>
+    </div>
+
+    <!-- Input Area -->
+    <div style="padding:16px;border-top:1px solid var(--border);display:flex;gap:10px;background:var(--bg-elevated)">
+      <textarea id="chat-input" class="form-control" rows="1"
+                style="resize:none;min-height:44px;max-height:120px"
+                placeholder="Ask me anything... (Press Enter to send, Shift+Enter for new line)"
+                onkeydown="handleChatKey(event)"></textarea>
+      <button class="btn btn-primary" onclick="sendMessage()" id="send-btn" style="flex-shrink:0">
+        <i data-lucide="send"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div>
+    <!-- Quick Actions -->
+    <div class="card mb-16 animate-in" style="animation-delay:0.1s">
+      <div class="card-title mb-12">⚡ Quick Actions</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        {% for action in quick_actions %}
+        <button style="padding:10px 12px;background:var(--bg-elevated);border:1px solid var(--border);
+                       border-radius:var(--radius-md);cursor:pointer;font-family:inherit;font-size:13px;
+                       text-align:left;transition:all 0.2s;color:var(--text-secondary);display:flex;
+                       align-items:center;gap:8px"
+                onclick="usePrompt('{{ action.prompt }}')"
+                onmouseover="this.style.borderColor='var(--primary)';this.style.color='var(--text-primary)'"
+                onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">
+          {{ action.icon }} {{ action.label }}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Tips -->
+    <div class="card animate-in" style="animation-delay:0.15s;background:var(--primary-glow);border-color:var(--primary)">
+      <div style="font-size:13px;font-weight:700;color:var(--primary-light);margin-bottom:10px">💡 PRO TIPS</div>
+      <ul style="list-style:none;display:flex;flex-direction:column;gap:6px">
+        <li style="font-size:13px;color:var(--text-secondary)">• Ask "Explain [topic] with example"</li>
+        <li style="font-size:13px;color:var(--text-secondary)">• Say "Quiz me on [subject]"</li>
+        <li style="font-size:13px;color:var(--text-secondary)">• Paste code and say "fix this"</li>
+        <li style="font-size:13px;color:var(--text-secondary)">• Ask "Create a 1-week plan for..."</li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let chatHistory = [];
+
+// Load existing history
+async function loadHistory() {
+  try {
+    const messages = await apiCall('/api/coach/history');
+    const container = document.getElementById('chat-messages');
+    if (messages.length > 0) {
+      container.innerHTML = '';
+      messages.forEach(m => appendMessage(m.role, m.content, false));
+    }
+  } catch {}
+}
+
+function appendMessage(role, content, animate = true) {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.style.alignSelf = role === 'user' ? 'flex-end' : 'flex-start';
+  div.style.maxWidth = role === 'user' ? '75%' : '80%';
+  if (animate) div.className = 'animate-fast';
+
+  if (role === 'user') {
+    div.innerHTML = `<div class="msg-user">${escapeHtml(content)}</div>`;
+  } else {
+    let parsed = null;
+    try {
+      let cleanContent = content.replace(/```json/gi, '').replace(/```/g, '').trim();
+      parsed = JSON.parse(cleanContent);
+    } catch(e) {}
+
+    if (parsed && parsed.concept) {
+      let html = `<div class="msg-label">🤖 Elite Coach</div><div class="msg-ai" style="padding:0;overflow:hidden">`;
+      html += `<div style="padding:16px">
+                 <div style="font-size:15px;font-weight:700;color:var(--primary-light);margin-bottom:8px">📖 Concept</div>
+                 <div style="margin-bottom:12px">${escapeHtml(parsed.concept)}</div>
+                 
+                 <div style="font-size:15px;font-weight:700;color:var(--accent);margin-bottom:8px">💡 Analogy</div>
+                 <div style="margin-bottom:12px;font-style:italic">${escapeHtml(parsed.analogy)}</div>
+               </div>`;
+      if (parsed.code) {
+        html += `<div style="background:#1a1a2e;padding:16px;border-top:1px solid #333;border-bottom:1px solid #333">
+                   <div style="font-size:12px;font-weight:700;color:#888;margin-bottom:8px">CODE</div>
+                   <pre style="color:#a0ff80;font-family:var(--font-mono);font-size:13px;overflow-x:auto">${escapeHtml(parsed.code)}</pre>
+                 </div>`;
+      }
+      if (parsed.test_cases && parsed.test_cases.length > 0) {
+        html += `<div style="padding:16px">
+                   <div style="font-size:13px;font-weight:700;color:var(--warning);margin-bottom:8px">🧪 Test Cases (Including Edge Case)</div>
+                   <ul style="list-style-type:disc;padding-left:20px;font-size:13px;color:var(--text-secondary)">
+                     ${parsed.test_cases.map(tc => `<li>${escapeHtml(tc)}</li>`).join('')}
+                   </ul>
+                 </div>`;
+      }
+      html += `</div>`;
+      div.innerHTML = html;
+    } else {
+      div.innerHTML = `
+        <div class="msg-label">🤖 AI Coach</div>
+        <div class="msg-ai">${escapeHtml(content)}</div>`;
+    }
+  }
+
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return div;
+}
+
+function escapeHtml(text) {
+  return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+             .replace(/\n/g,'<br>');
+}
+
+function handleChatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const message = input.value.trim();
+  if (!message) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+
+  appendMessage('user', message);
+
+  // Show typing indicator
+  const typingDiv = document.createElement('div');
+  typingDiv.style.alignSelf = 'flex-start';
+  typingDiv.innerHTML = '<div class="msg-ai typing">AI Coach is thinking... 🤔</div>';
+  document.getElementById('chat-messages').appendChild(typingDiv);
+  document.getElementById('chat-messages').scrollTop = 99999;
+
+  const sendBtn = document.getElementById('send-btn');
+  sendBtn.disabled = true;
+
+  try {
+    const data = await apiCall('/api/coach/chat', 'POST', { message });
+    typingDiv.remove();
+    appendMessage('assistant', data.response);
+  } catch (e) {
+    typingDiv.remove();
+    appendMessage('assistant', `Sorry, I had a problem: ${e.message}. Please try again! 😊`);
+  } finally {
+    sendBtn.disabled = false;
+    input.focus();
+  }
+}
+
+function usePrompt(prompt) {
+  document.getElementById('chat-input').value = prompt;
+  document.getElementById('chat-input').focus();
+}
+
+async function clearChat() {
+  if (!confirm('Clear all chat history?')) return;
+  try {
+    await apiCall('/api/coach/clear', 'POST');
+    document.getElementById('chat-messages').innerHTML = `
+      <div style="align-self:flex-start;max-width:80%">
+        <div class="msg-label">🤖 SkillRise AI Coach</div>
+        <div class="msg-ai">Chat cleared! Ready for a fresh start. What would you like to learn? 😊</div>
+      </div>`;
+    showToast('Chat cleared', 'info');
+  } catch {}
+}
+
+// Auto-resize textarea
+document.getElementById('chat-input').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+loadHistory();
+</script>
+{% endblock %}

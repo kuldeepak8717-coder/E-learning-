@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}Notes{% endblock %}
+{% block description %}Study notes for English, Aptitude, Programming, Reasoning and more — explained simply with examples.{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+  <h1 class="page-title">📚 Study Notes</h1>
+  <p class="page-subtitle">AI-powered notes explained simply — with Hindi/Hinglish tips, examples & practice questions</p>
+</div>
+
+<!-- Category Tabs -->
+<div class="tabs mb-24" id="category-tabs"></div>
+
+<!-- Content Area -->
+<div class="notes-layout">
+
+  <!-- Topic List -->
+  <div class="card" style="position:sticky;top:80px">
+    <div class="card-header">
+      <div class="card-title" id="topics-title">Topics</div>
+    </div>
+    <div id="topics-list" style="display:flex;flex-direction:column;gap:4px"></div>
+  </div>
+
+  <!-- Notes Content -->
+  <div class="card" id="notes-area">
+    <div class="empty-state">
+      <div class="empty-state-icon">📖</div>
+      <h3>Select a Topic</h3>
+      <p>Choose a category and topic from the left to load AI-generated notes.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+  .notes-layout {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 768px) {
+    .notes-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+<script>
+let categories = {};
+let currentCategory = null;
+let currentTopic = null;
+
+async function loadCategories() {
+  try {
+    categories = await apiCall('/api/notes/categories');
+    renderTabs();
+    // Auto-select first category
+    const firstKey = Object.keys(categories)[0];
+    if (firstKey) selectCategory(firstKey);
+  } catch (e) {
+    showToast('Could not load categories', 'error');
+  }
+}
+
+function renderTabs() {
+  const tabsEl = document.getElementById('category-tabs');
+  tabsEl.innerHTML = Object.entries(categories).map(([key, cat]) =>
+    `<button class="tab" data-key="${key}" onclick="selectCategory('${key}')" id="tab-${key}">
+       ${cat.icon} ${cat.label}
+     </button>`
+  ).join('');
+}
+
+function selectCategory(key) {
+  currentCategory = key;
+  const cat = categories[key];
+  // Update active tab
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const tab = document.getElementById(`tab-${key}`);
+  if (tab) { tab.classList.add('active'); tab.scrollIntoView({ block: 'nearest', inline: 'center' }); }
+
+  // Update topics
+  document.getElementById('topics-title').textContent = cat.label;
+  const list = document.getElementById('topics-list');
+  list.innerHTML = cat.topics.map(topic =>
+    `<button class="nav-item" style="cursor:pointer;width:100%;text-align:left;border:none;font-family:inherit"
+             onclick="loadNotes('${topic}')" id="topic-${topic.replace(/\s+/g,'-').replace(/[^a-zA-Z0-9-]/g,'')}"
+             title="${topic}">
+       <span style="font-size:16px">${cat.icon}</span>
+       <span style="font-size:13px;white-space:normal">${topic}</span>
+     </button>`
+  ).join('');
+}
+
+async function loadNotes(topic) {
+  currentTopic = topic;
+  // Highlight active topic
+  document.querySelectorAll('#topics-list button').forEach(b => b.classList.remove('active'));
+  const topicId = 'topic-' + topic.replace(/\s+/g,'-').replace(/[^a-zA-Z0-9-]/g,'');
+  const btn = document.getElementById(topicId);
+  if (btn) btn.classList.add('active');
+
+  const notesArea = document.getElementById('notes-area');
+  notesArea.innerHTML = `<div class="loading-overlay"><div class="spinner-lg spinner"></div>
+    <span>Generating notes with AI...</span></div>`;
+
+  try {
+    const data = await apiCall('/api/notes/generate', 'POST', {
+      topic, subject: categories[currentCategory]?.label || topic
+    });
+    renderNotes(data);
+  } catch (e) {
+    notesArea.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div>
+      <h3>Could not load notes</h3><p>${e.message}</p></div>`;
+  }
+}
+
+function renderNotes(n) {
+  const area = document.getElementById('notes-area');
+  area.innerHTML = `
+    <div class="animate-in">
+      <div class="flex items-center justify-between mb-20">
+        <h2 style="font-size:22px;font-weight:800;color:var(--text-primary)">${n.title}</h2>
+        <div class="flex gap-8">
+          <button class="btn btn-sm btn-secondary" onclick="loadNotes('${n.title}')">🔄 Reload</button>
+          <button class="btn btn-sm btn-primary" onclick="practiceQuestions()">Practice →</button>
+        </div>
+      </div>
+
+      <!-- Simple Explanation -->
+      <div class="card mb-16" style="background:hsla(250,84%,60%,0.08);border-color:var(--primary)">
+        <div style="font-size:13px;font-weight:700;color:var(--primary-light);margin-bottom:8px">📖 SIMPLE EXPLANATION</div>
+        <p style="font-size:15px;line-height:1.7;color:var(--text-primary)">${n.simple_explanation}</p>
+      </div>
+
+      <!-- Hindi Meaning -->
+      ${n.hindi_meaning ? `<div class="card mb-16" style="background:hsla(38,92%,58%,0.08);border-color:var(--warning)">
+        <div style="font-size:13px;font-weight:700;color:var(--warning);margin-bottom:8px">🇮🇳 HINDI/HINGLISH MEANING</div>
+        <p style="font-size:14px;line-height:1.7;color:var(--text-primary)">${n.hindi_meaning}</p>
+      </div>` : ''}
+
+      <!-- Key Points -->
+      <div class="card mb-16">
+        <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:12px">⭐ KEY POINTS</div>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:8px">
+          ${n.key_points.map(p => `<li style="display:flex;gap:10px;align-items:flex-start">
+            <span style="color:var(--accent);flex-shrink:0;margin-top:2px">✓</span>
+            <span style="font-size:14px;color:var(--text-primary)">${p}</span>
+          </li>`).join('')}
+        </ul>
+      </div>
+
+      <!-- Examples -->
+      ${n.examples.length ? `<div class="card mb-16">
+        <div style="font-size:13px;font-weight:700;color:var(--info);margin-bottom:12px">💡 EXAMPLES</div>
+        ${n.examples.map(ex => `
+          <div style="margin-bottom:12px;padding:12px;background:var(--bg-elevated);border-radius:var(--radius-md)">
+            <div style="font-weight:600;font-size:14px;color:var(--text-primary);margin-bottom:6px">${ex.title}</div>
+            <div style="font-size:14px;color:var(--text-secondary);line-height:1.6">${ex.content}</div>
+          </div>`).join('')}
+      </div>` : ''}
+
+      <!-- Common Mistakes -->
+      ${n.common_mistakes.length ? `<div class="card mb-16" style="background:hsla(0,84%,60%,0.06);border-color:var(--danger)">
+        <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:12px">⚠️ COMMON MISTAKES</div>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:8px">
+          ${n.common_mistakes.map(m => `<li style="display:flex;gap:10px;align-items:flex-start">
+            <span style="color:var(--danger);flex-shrink:0">✗</span>
+            <span style="font-size:14px;color:var(--text-primary)">${m}</span>
+          </li>`).join('')}
+        </ul>
+      </div>` : ''}
+
+      <!-- Practice Questions -->
+      ${n.practice_questions.length ? `<div class="card mb-16">
+        <div style="font-size:13px;font-weight:700;color:var(--success);margin-bottom:12px">📝 PRACTICE QUESTIONS</div>
+        ${n.practice_questions.map((q, i) => `
+          <div style="margin-bottom:12px;padding:12px;background:var(--bg-elevated);border-radius:var(--radius-md)">
+            <div style="font-size:14px;color:var(--text-primary);margin-bottom:8px"><strong>Q${i+1}.</strong> ${q.question}</div>
+            <button onclick="toggleAnswer(this)" class="btn btn-sm btn-ghost">Show Answer</button>
+            <div style="display:none;margin-top:8px;font-size:14px;color:var(--success);
+                        padding:8px;background:hsla(142,71%,45%,0.1);border-radius:var(--radius-sm)">
+              <strong>Answer:</strong> ${q.answer}
+            </div>
+          </div>`).join('')}
+      </div>` : ''}
+
+      <!-- Quick Revision -->
+      <div class="card" style="background:var(--gradient-primary);border:none;color:white">
+        <div style="font-size:13px;font-weight:700;opacity:0.8;margin-bottom:12px">⚡ QUICK REVISION</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          ${n.quick_revision.map(r => `<span style="background:rgba(255,255,255,0.15);padding:4px 12px;
+            border-radius:var(--radius-full);font-size:13px">${r}</span>`).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
+function toggleAnswer(btn) {
+  const answerDiv = btn.nextElementSibling;
+  if (answerDiv.style.display === 'none') {
+    answerDiv.style.display = 'block';
+    btn.textContent = 'Hide Answer';
+  } else {
+    answerDiv.style.display = 'none';
+    btn.textContent = 'Show Answer';
+  }
+}
+
+function practiceQuestions() {
+  if (currentTopic) window.location.href = `/quiz?subject=${encodeURIComponent(currentCategory)}`;
+}
+
+loadCategories();
+</script>
+{% endblock %}

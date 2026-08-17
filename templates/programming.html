@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+{% block title %}Programming{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+<style>
+.CodeMirror {
+  height: 340px !important;
+  font-family: var(--font-mono) !important;
+  font-size: 14px !important;
+  border-radius: var(--radius-md);
+  background: #1a1a2e !important;
+}
+[data-theme="light"] .CodeMirror { background: #282a36 !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+  <h1 class="page-title">💻 Programming</h1>
+  <p class="page-subtitle">Learn, practice, and run code — AI explains everything in simple English</p>
+</div>
+
+<div class="grid-2" style="gap:20px">
+  <!-- Left: Language + Topics + Editor -->
+  <div>
+    <!-- Language Selector -->
+    <div class="card mb-16 animate-in">
+      <div class="card-title mb-12">Select Language</div>
+      <div class="flex gap-8" style="flex-wrap:wrap">
+        {% for lang in languages %}
+        <button class="lang-btn toggle-btn {% if loop.first %}active{% endif %}"
+                data-id="{{ lang.id }}" onclick="selectLang('{{ lang.id }}', this)"
+                style="border:1px solid {{ lang.color }}20">
+          {{ lang.icon }} {{ lang.label }}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Code Editor -->
+    <div class="card animate-in" style="animation-delay:0.1s">
+      <div class="flex items-center justify-between mb-12">
+        <div class="card-title">🖊️ Code Editor</div>
+        <div class="flex gap-8">
+          <select class="form-control" style="width:150px;font-size:12px" id="topic-select">
+            {% for level in syllabus %}
+            <optgroup label="{{ level.title }}">
+              {% for topic in level.topics %}
+              <option value="{{ topic }}">{{ topic }}</option>
+              {% endfor %}
+            </optgroup>
+            {% endfor %}
+          </select>
+          <button class="btn btn-sm btn-secondary" onclick="loadLesson()">
+            <i data-lucide="book-open"></i> Lesson
+          </button>
+        </div>
+      </div>
+
+      <textarea id="code-editor"></textarea>
+
+      <div class="flex gap-8 mt-12" style="flex-wrap:wrap">
+        <button class="btn btn-primary flex-1" onclick="runCode()" id="run-btn">
+          <i data-lucide="play"></i> Run Code
+        </button>
+        <button class="btn btn-secondary" onclick="explainCode()">
+          <i data-lucide="sparkles"></i> Explain
+        </button>
+        <button class="btn btn-ghost" onclick="getChallenge()" title="Daily Challenge">
+          <i data-lucide="zap"></i> Challenge
+        </button>
+        <button class="btn btn-ghost" onclick="fixBug()" title="Fix the Bug">
+          <i data-lucide="bug"></i> Fix Bug
+        </button>
+        <button class="btn btn-ghost" onclick="predictOutput()" title="Predict Output">
+          <i data-lucide="eye"></i> Predict
+        </button>
+        <button class="btn btn-ghost" onclick="extremeTest()" title="Extreme Test Cases">
+          <i data-lucide="shield-alert"></i> Extreme Test
+        </button>
+        <button class="btn btn-ghost btn-icon" onclick="clearEditor()" title="Clear">
+          <i data-lucide="trash-2"></i>
+        </button>
+      </div>
+
+      <!-- Output -->
+      <div style="margin-top:16px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">OUTPUT</div>
+        <div id="code-output" style="background:#0d0d1a;padding:16px;border-radius:var(--radius-md);
+              font-family:var(--font-mono);font-size:13px;min-height:80px;color:#a0ff80;
+              white-space:pre-wrap;line-height:1.6">
+          <span style="color:#555">// Run your code to see output here</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Notes, Explanation, Challenge -->
+  <div>
+    <!-- AI Panel -->
+    <div class="card animate-in" style="animation-delay:0.15s;min-height:300px" id="ai-panel">
+      <div class="empty-state" style="padding:24px">
+        <div class="empty-state-icon">🤖</div>
+        <h3>AI Assistant</h3>
+        <p>Click "Explain" to understand your code, "Lesson" to load concept notes, or "Challenge" to get a practice problem!</p>
+      </div>
+    </div>
+
+    <!-- Challenge Panel -->
+    <div class="card mt-16 animate-in" style="animation-delay:0.2s;display:none" id="challenge-panel">
+      <div class="card-title mb-12">⚡ Current Challenge</div>
+      <div id="challenge-content"></div>
+    </div>
+
+    <!-- Quiz -->
+    <div class="card mt-16 animate-in" style="animation-delay:0.25s">
+      <div class="flex items-center justify-between mb-12">
+        <div class="card-title">📝 Programming Quiz</div>
+        <div class="flex gap-8">
+          <select class="form-control" style="width:100px;font-size:12px" id="quiz-diff">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+          <button class="btn btn-sm btn-primary" onclick="loadProgQuiz()">Generate</button>
+        </div>
+      </div>
+      <div id="prog-quiz-area">
+        <p class="text-muted text-small">Click Generate to create programming questions</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script>
+const codeStarters = {{ code_starters | tojson }};
+let currentLang = 'python';
+let editor;
+let pqList = [], pqAnswers = [];
+
+function encodeCode(str) {
+  return encodeURIComponent(str || '').replace(/'/g, "%27");
+}
+
+// Init CodeMirror
+editor = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
+  lineNumbers: true,
+  theme: 'dracula',
+  mode: 'python',
+  indentUnit: 4,
+  tabSize: 4,
+  lineWrapping: true,
+  autoCloseBrackets: true,
+});
+editor.setValue(codeStarters.python);
+
+function selectLang(id, btn) {
+  currentLang = id;
+  btn.closest('.flex').querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const modeMap = { python: 'python', c: 'text/x-csrc', cpp: 'text/x-c++src', java: 'text/x-java', javascript: 'javascript' };
+  editor.setOption('mode', modeMap[id] || 'python');
+  editor.setValue(codeStarters[id] || '// Write your code here');
+}
+
+async function runCode() {
+  const code = editor.getValue();
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Running...';
+  const output = document.getElementById('code-output');
+  output.innerHTML = '<span style="color:#888">Running...</span>';
+
+  try {
+    const data = await apiCall('/api/programming/run', 'POST', { code, language: currentLang });
+    if (data.simulated) {
+      output.innerHTML = `<span style="color:#888">// Simulated output (${currentLang} runs via AI)</span>\n` +
+        `<span style="color:#a0ff80">${data.output || 'No output'}</span>`;
+    } else if (data.error) {
+      output.innerHTML = `<span style="color:#ff6b6b">Error:\n${data.error}</span>`;
+    } else {
+      output.innerHTML = `<span style="color:#a0ff80">${data.output || '(No output)'}</span>`;
+    }
+  } catch (e) {
+    output.innerHTML = `<span style="color:#ff6b6b">Failed: ${e.message}</span>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="play"></i> Run Code';
+    lucide.createIcons();
+  }
+}
+
+async function explainCode() {
+  const code = editor.getValue().trim();
+  if (!code) { showToast('Write some code first', 'warning'); return; }
+
+  const panel = document.getElementById('ai-panel');
+  panel.innerHTML = `<div class="loading-overlay"><div class="spinner-lg spinner"></div>
+    <span>AI is reading your code...</span></div>`;
+
+  try {
+    const data = await apiCall('/api/programming/explain', 'POST', {
+      code, language: currentLang, question: 'Explain this code in simple English for a beginner'
+    });
+    panel.innerHTML = `
+      <div class="animate-in">
+        <div style="font-size:14px;font-weight:700;color:var(--primary-light);margin-bottom:12px">🤖 AI EXPLANATION</div>
+        <div style="font-size:14px;line-height:1.8;color:var(--text-primary);white-space:pre-wrap">${data.explanation}</div>
+        <button class="btn btn-ghost btn-sm mt-12" onclick="clearAiPanel()">Close</button>
+      </div>`;
+  } catch (e) {
+    panel.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+  }
+}
+
+async function loadLesson() {
+  const topic = document.getElementById('topic-select').value;
+  const panel = document.getElementById('ai-panel');
+  panel.innerHTML = `<div class="loading-overlay"><div class="spinner-lg spinner"></div>
+    <span>Loading ${topic} lesson...</span></div>`;
+
+  try {
+    const notes = await apiCall('/api/programming/notes', 'POST', { topic, language: currentLang });
+    panel.innerHTML = `
+      <div class="animate-in">
+        <div style="font-size:18px;font-weight:700;margin-bottom:16px;color:var(--text-primary)">${notes.title}</div>
+        <div style="font-size:14px;line-height:1.7;color:var(--text-secondary);margin-bottom:16px">${notes.simple_explanation}</div>
+        ${notes.examples.map(ex => `
+          <div style="margin-bottom:12px">
+            <div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:6px">${ex.title}</div>
+            <pre style="background:var(--bg-elevated);padding:12px;border-radius:var(--radius-sm);
+                        font-size:13px;overflow-x:auto;color:var(--text-primary)">${ex.content}</pre>
+          </div>`).join('')}
+        <div style="font-weight:600;font-size:13px;color:var(--text-muted);margin-top:12px">KEY POINTS</div>
+        ${notes.key_points.map(p=>`<div style="padding:6px 0;font-size:14px;color:var(--text-primary);
+          border-bottom:1px solid var(--border)">✓ ${p}</div>`).join('')}
+      </div>`;
+  } catch (e) {
+    panel.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+  }
+}
+
+async function getChallenge() {
+  const panel = document.getElementById('challenge-panel');
+  const content = document.getElementById('challenge-content');
+  panel.style.display = 'block';
+  content.innerHTML = `<div class="loading-overlay"><div class="spinner"></div></div>`;
+
+  try {
+    const ch = await apiCall('/api/programming/challenge', 'POST', {
+      language: currentLang, difficulty: 'easy'
+    });
+    content.innerHTML = `
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px;color:var(--text-primary)">${ch.title}</div>
+      <p style="font-size:14px;color:var(--text-secondary);margin-bottom:12px">${ch.description}</p>
+      ${ch.example_input !== 'None' ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div style="padding:10px;background:var(--bg-elevated);border-radius:var(--radius-sm)">
+          <div style="font-size:11px;font-weight:700;color:var(--text-muted)">INPUT</div>
+          <code style="font-size:13px">${ch.example_input}</code>
+        </div>
+        <div style="padding:10px;background:var(--bg-elevated);border-radius:var(--radius-sm)">
+          <div style="font-size:11px;font-weight:700;color:var(--text-muted)">OUTPUT</div>
+          <code style="font-size:13px">${ch.example_output}</code>
+        </div>
+      </div>` : ''}
+      <div style="padding:10px;background:hsla(38,92%,58%,0.1);border-radius:var(--radius-sm);font-size:13px;color:var(--warning);margin-bottom:12px">
+        💡 Hint: ${ch.hint}
+      </div>
+      <div class="flex gap-8">
+        <button class="btn btn-sm btn-secondary" onclick="loadStarterCode(decodeURIComponent('${encodeCode(ch.starter_code)}'))">Load Starter Code</button>
+        <button class="btn btn-sm btn-ghost" onclick="showSolution(decodeURIComponent('${encodeCode(ch.solution)}'))">Show Solution</button>
+      </div>`;
+  } catch (e) {
+    content.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+  }
+}
+
+function loadStarterCode(code) { editor.setValue(code); }
+function showSolution(code) { editor.setValue(code); showToast('Solution loaded in editor', 'info'); }
+function clearAiPanel() {
+  document.getElementById('ai-panel').innerHTML = `<div class="empty-state" style="padding:24px">
+    <div class="empty-state-icon">🤖</div><h3>AI Assistant</h3>
+    <p>Click "Explain", "Lesson", or practice modes to get AI help!</p></div>`;
+}
+
+// ---- New Practice Modes ----
+async function fixBug() {
+  const topic = document.getElementById('topic-select').value;
+  const panel = document.getElementById('ai-panel');
+  panel.innerHTML = `<div class="loading-overlay"><div class="spinner"></div><span>Generating bug...</span></div>`;
+  
+  try {
+    const data = await apiCall('/api/programming/fix_bug', 'POST', { language: currentLang, topic });
+    editor.setValue(data.buggy_code);
+    panel.innerHTML = `
+      <div class="animate-in">
+        <div style="font-size:16px;font-weight:700;color:var(--danger);margin-bottom:8px">🐛 ${data.title}</div>
+        <p style="font-size:14px;color:var(--text-primary);margin-bottom:12px">${data.description}</p>
+        <div style="padding:10px;background:hsla(38,92%,58%,0.1);color:var(--warning);font-size:13px;border-radius:var(--radius-sm);margin-bottom:12px">
+          💡 Hint: ${data.hint}
+        </div>
+        <button class="btn btn-sm btn-ghost" onclick="showSolution(decodeURIComponent('${encodeCode(data.solution)}'))">Show Answer</button>
+      </div>
+    `;
+  } catch(e) { panel.innerHTML = `<div class="alert alert-danger">${e.message}</div>`; }
+}
+
+async function predictOutput() {
+  const topic = document.getElementById('topic-select').value;
+  const panel = document.getElementById('ai-panel');
+  panel.innerHTML = `<div class="loading-overlay"><div class="spinner"></div><span>Generating code...</span></div>`;
+  
+  try {
+    const data = await apiCall('/api/programming/predict_output', 'POST', { language: currentLang, topic });
+    editor.setValue(data.code);
+    window._predictCorrect = data.correct_output;
+    window._predictExplanation = data.explanation;
+    
+    panel.innerHTML = `
+      <div class="animate-in">
+        <div style="font-size:16px;font-weight:700;color:var(--info);margin-bottom:8px">👁️ ${data.title}</div>
+        <p style="font-size:14px;color:var(--text-primary);margin-bottom:12px">${data.description}</p>
+        <div class="flex gap-8 mb-12">
+          <input type="text" id="predict-input" class="form-control" placeholder="What will it print?">
+          <button class="btn btn-primary" onclick="checkPrediction()">Check</button>
+        </div>
+        <div id="predict-result"></div>
+      </div>
+    `;
+  } catch(e) { panel.innerHTML = `<div class="alert alert-danger">${e.message}</div>`; }
+}
+
+function checkPrediction() {
+  const userAns = document.getElementById('predict-input').value.trim();
+  const correct = window._predictCorrect;
+  const res = document.getElementById('predict-result');
+  if(userAns === correct) {
+    res.innerHTML = `<div class="alert alert-success mt-8"><b>Correct!</b><br>${window._predictExplanation}</div>`;
+  } else {
+    res.innerHTML = `<div class="alert alert-danger mt-8"><b>Incorrect.</b> Correct was: ${correct}<br>${window._predictExplanation}</div>`;
+  }
+}
+
+async function extremeTest() {
+  const code = editor.getValue().trim();
+  if (!code) { showToast('Write some code first', 'warning'); return; }
+  
+  const panel = document.getElementById('ai-panel');
+  panel.innerHTML = `<div class="loading-overlay"><div class="spinner"></div><span>Running extreme edge cases...</span></div>`;
+  
+  try {
+    const data = await apiCall('/api/programming/extreme_test', 'POST', { language: currentLang, code });
+    panel.innerHTML = `
+      <div class="animate-in">
+        <div style="font-size:16px;font-weight:700;color:${data.did_it_crash ? 'var(--danger)' : 'var(--success)'};margin-bottom:8px">
+          ${data.did_it_crash ? '💥 Code Crashed!' : '🛡️ Bulletproof Code!'}
+        </div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">Tested cases: ${data.edge_cases_tested.join(', ')}</div>
+        <p style="font-size:14px;color:var(--text-primary);margin-bottom:12px">${data.feedback}</p>
+        <button class="btn btn-sm btn-secondary" onclick="showSolution(decodeURIComponent('${encodeCode(data.improved_code)}'))">Load Improved Code</button>
+      </div>
+    `;
+  } catch(e) { panel.innerHTML = `<div class="alert alert-danger">${e.message}</div>`; }
+}
+
+function clearEditor() {
+  editor.setValue(codeStarters[currentLang] || '');
+  document.getElementById('code-output').innerHTML = '<span style="color:#555">// Run your code to see output here</span>';
+}
+
+async function loadProgQuiz() {
+  const topic = document.getElementById('topic-select').value;
+  const diff = document.getElementById('quiz-diff').value;
+  const area = document.getElementById('prog-quiz-area');
+  area.innerHTML = `<div class="loading-overlay"><div class="spinner"></div></div>`;
+
+  try {
+    const data = await apiCall('/api/programming/quiz', 'POST', {
+      language: currentLang, topic, difficulty: diff, count: 5
+    });
+    pqList = data.questions;
+    pqAnswers = new Array(pqList.length).fill(null);
+    area.innerHTML = pqList.map((q,qi) => `
+      <div style="margin-bottom:14px;padding:12px;background:var(--bg-elevated);border-radius:var(--radius-md)">
+        <div style="font-size:14px;font-weight:600;margin-bottom:8px">Q${qi+1}. ${q.question}</div>
+        ${q.options.map((opt,oi) => `
+          <label style="display:flex;align-items:center;gap:8px;padding:6px 10px;cursor:pointer;
+                        font-size:13px;border-radius:var(--radius-sm)" id="po-${qi}-${oi}">
+            <input type="radio" name="pq${qi}" value="${oi}" onchange="pqAnswers[${qi}]=${oi}"
+                   style="accent-color:var(--primary)">
+            ${['A','B','C','D'][oi]}. ${opt}
+          </label>`).join('')}
+      </div>`).join('') +
+      `<button class="btn btn-primary btn-sm btn-full" onclick="submitProgQuiz()">Submit</button>
+       <div id="prog-quiz-result" style="margin-top:12px"></div>`;
+  } catch(e) {
+    area.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+  }
+}
+
+function submitProgQuiz() {
+  let score=0;
+  pqList.forEach((q,qi) => {
+    const sel=pqAnswers[qi], cor=q.correct;
+    if(sel===cor) score++;
+    q.options.forEach((_,oi)=>{
+      const lbl=document.getElementById(`po-${qi}-${oi}`);
+      if(lbl){
+        if(oi===cor)lbl.style.color='var(--success)';
+        if(oi===sel&&oi!==cor)lbl.style.color='var(--danger)';
+      }
+    });
+  });
+  document.getElementById('prog-quiz-result').innerHTML = `
+    <div style="text-align:center;padding:12px;background:var(--bg-card);border-radius:var(--radius-md)">
+      <b style="color:${score>=3?'var(--success)':'var(--danger)'}">${score}/${pqList.length}</b> correct
+    </div>`;
+  document.querySelectorAll('[name^=pq]').forEach(r=>r.disabled=true);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}AI Image Generator{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+  <h1 class="page-title">🖼️ AI Image Generator</h1>
+  <p class="page-subtitle">Create study visuals, vocabulary cards, programming diagrams and more with AI</p>
+</div>
+
+<div class="grid-2" style="gap:20px">
+  <!-- Controls -->
+  <div>
+    <!-- Presets -->
+    <div class="card mb-16 animate-in">
+      <div class="card-title mb-12">🎨 Style Presets</div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+        {% for p in presets %}
+        <button class="preset-btn" data-id="{{ p.id }}" onclick="selectPreset('{{ p.id }}', this)"
+                style="padding:10px 12px;background:var(--bg-elevated);border:1px solid var(--border);
+                       border-radius:var(--radius-md);cursor:pointer;font-family:inherit;font-size:13px;
+                       text-align:left;color:var(--text-secondary);transition:all 0.2s;display:flex;align-items:center;gap:8px">
+          <span>{{ p.icon }}</span><span>{{ p.label }}</span>
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Prompt -->
+    <div class="card mb-16 animate-in" style="animation-delay:0.05s">
+      <div class="card-title mb-12">✍️ Describe Your Image</div>
+      <textarea class="form-control" id="image-prompt" rows="4"
+                placeholder="E.g.: Python loops concept with visual examples
+Or: Motivational study poster with rocket and stars
+Or: Vocabulary card for the word 'perseverance'"></textarea>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:8px">
+        Tip: Be specific and descriptive for better results!
+      </div>
+    </div>
+
+    <!-- Size -->
+    <div class="card mb-16 animate-in" style="animation-delay:0.1s">
+      <div class="card-title mb-12">📐 Image Size</div>
+      <div class="toggle-group">
+        {% for s in sizes %}
+        <button class="toggle-btn {% if loop.first %}active{% endif %}"
+                onclick="selectSize('{{ s.id }}', this)" data-size="{{ s.id }}">
+          {{ s.label }}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <button class="btn btn-cta btn-full" onclick="generateImage()" id="gen-btn">
+      <i data-lucide="image"></i> Generate Image
+    </button>
+  </div>
+
+  <!-- Preview -->
+  <div>
+    <div class="card animate-in" style="animation-delay:0.15s;min-height:400px" id="preview-card">
+      <div class="empty-state">
+        <div class="empty-state-icon">🖼️</div>
+        <h3>Image Preview</h3>
+        <p>Enter a description and click Generate to create your AI image!</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedPreset = '';
+let selectedSize = '512x512';
+let currentImageUrl = '';
+
+function selectPreset(id, btn) {
+  selectedPreset = id;
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    b.style.borderColor = b.dataset.id === id ? 'var(--primary)' : 'var(--border)';
+    b.style.background = b.dataset.id === id ? 'var(--primary-glow)' : 'var(--bg-elevated)';
+    b.style.color = b.dataset.id === id ? 'var(--primary-light)' : 'var(--text-secondary)';
+  });
+}
+
+function selectSize(id, btn) {
+  selectedSize = id;
+  btn.closest('.toggle-group').querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function generateImage() {
+  const prompt = document.getElementById('image-prompt').value.trim();
+  if (!prompt) { showToast('Please describe what you want to generate', 'warning'); return; }
+
+  const btn = document.getElementById('gen-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Generating...';
+
+  const preview = document.getElementById('preview-card');
+  preview.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                min-height:400px;gap:20px">
+      <div class="spinner-lg spinner"></div>
+      <div style="font-size:14px;color:var(--text-secondary)">Creating your image...</div>
+      <div style="font-size:12px;color:var(--text-muted);text-align:center;max-width:300px">
+        "${prompt}"
+      </div>
+    </div>`;
+
+  try {
+    const data = await apiCall('/api/image-gen/generate', 'POST', {
+      prompt, preset: selectedPreset, size: selectedSize
+    });
+
+    currentImageUrl = data.image_url;
+
+    // Load image
+    const img = new Image();
+    img.onload = () => {
+      preview.innerHTML = `
+        <div class="animate-in">
+          <img src="${currentImageUrl}" alt="Generated image" id="generated-img"
+               style="width:100%;border-radius:var(--radius-md);max-height:500px;object-fit:contain" />
+          <div style="margin-top:16px;font-size:13px;color:var(--text-muted);font-style:italic">
+            "${data.prompt}"
+          </div>
+          <div class="flex gap-8 mt-12">
+            <button class="btn btn-primary flex-1" onclick="downloadImage()">
+              <i data-lucide="download"></i> Save Image
+            </button>
+            <button class="btn btn-secondary flex-1" onclick="generateImage()">
+              <i data-lucide="refresh-cw"></i> Regenerate
+            </button>
+          </div>
+        </div>`;
+      lucide.createIcons();
+    };
+    img.onerror = () => {
+      // Show the URL with link if image fails to load directly
+      preview.innerHTML = `
+        <div class="animate-in" style="text-align:center;padding:20px">
+          <div style="font-size:48px;margin-bottom:12px">🖼️</div>
+          <div style="font-size:14px;color:var(--text-primary);margin-bottom:12px">Image generated!</div>
+          <a href="${currentImageUrl}" target="_blank" class="btn btn-primary">
+            <i data-lucide="external-link"></i> Open Image
+          </a>
+          <div class="flex gap-8 mt-12">
+            <button class="btn btn-secondary flex-1" onclick="generateImage()">
+              <i data-lucide="refresh-cw"></i> Regenerate
+            </button>
+          </div>
+        </div>`;
+      lucide.createIcons();
+    };
+    img.src = currentImageUrl;
+
+    showToast('Image generated successfully!', 'success');
+  } catch (e) {
+    preview.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="image"></i> Generate Image';
+    lucide.createIcons();
+  }
+}
+
+function downloadImage() {
+  if (!currentImageUrl) return;
+  const a = document.createElement('a');
+  a.href = currentImageUrl;
+  a.download = 'skillrise-ai-image.png';
+  a.target = '_blank';
+  a.click();
+}
+</script>
+{% endblock %}

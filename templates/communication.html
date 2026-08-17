@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+{% block title %}AI Communication Trainer{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+  <h1 class="page-title">🗣️ Communication Trainer</h1>
+  <p class="page-subtitle">AI evaluates your English and gives you simple, supportive feedback</p>
+</div>
+
+<div class="grid-2" style="gap:20px">
+  <!-- Left: Input Panel -->
+  <div>
+    <!-- Mode Selector -->
+    <div class="card mb-16 animate-in">
+      <div class="card-title mb-12">Select Conversation Mode</div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+        {% for m in modes %}
+        <button class="mode-btn" data-id="{{ m.id }}" onclick="selectMode('{{ m.id }}', this)"
+                style="padding:10px 12px;background:var(--bg-elevated);border:1px solid var(--border);
+                       border-radius:var(--radius-md);cursor:pointer;font-family:inherit;font-size:13px;
+                       text-align:left;transition:all 0.2s;color:var(--text-secondary)">
+          <div>{{ m.icon }} {{ m.label }}</div>
+          <div style="font-size:11px;opacity:0.7;margin-top:2px">{{ m.description }}</div>
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Daily Topics -->
+    <div class="card mb-16 animate-in" style="animation-delay:0.1s">
+      <div class="card-title mb-12">🎯 Daily Speaking Topics</div>
+      <div class="tabs mb-12" id="topic-tabs">
+        <button class="tab active" onclick="setTopicDuration('30sec', this)">30 sec</button>
+        <button class="tab" onclick="setTopicDuration('1min', this)">1 min</button>
+        <button class="tab" onclick="setTopicDuration('2min', this)">2 min</button>
+      </div>
+      <div id="daily-topics-list"></div>
+    </div>
+
+    <!-- Input Area -->
+    <div class="card animate-in" style="animation-delay:0.15s">
+      <div class="card-title mb-12">✍️ Write or Speak in English</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:10px" id="selected-mode-label">
+        Mode: Daily Conversation
+      </div>
+      <div id="topic-hints" style="margin-bottom:12px;display:none">
+        <div style="font-size:13px;font-weight:600;color:var(--primary-light);margin-bottom:8px">💡 Points to cover:</div>
+        <div id="hint-points" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+      <textarea class="form-control" id="user-text" rows="6"
+                placeholder="Type your English here...
+Example: 'Good morning! I want to tell you about my daily routine. I wake up at 7 AM...'
+
+Don't worry about mistakes — AI will help you improve! 😊"></textarea>
+      <div class="flex justify-between mt-12 items-center">
+        <div class="text-small text-muted" id="char-count">0 characters</div>
+        <div class="flex gap-8">
+          <button class="btn btn-ghost btn-sm" onclick="clearText()">Clear</button>
+          <button class="btn btn-primary" onclick="evaluateText()" id="eval-btn">
+            <i data-lucide="sparkles"></i> Evaluate My English
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Feedback Panel -->
+  <div>
+    <div class="card animate-in" style="animation-delay:0.2s;min-height:400px" id="feedback-panel">
+      <div class="empty-state">
+        <div class="empty-state-icon">🤖</div>
+        <h3>AI Feedback</h3>
+        <p>Write something in English and click "Evaluate" to get instant AI feedback on your grammar, vocabulary, and clarity!</p>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="card mt-16 animate-in" style="animation-delay:0.25s">
+      <div class="card-title mb-12">📚 Recent Sessions</div>
+      <div id="session-history">
+        <div class="loading-overlay"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentMode = 'daily_conversation';
+let currentTopicDuration = '30sec';
+const dailyTopics = {{ daily_topics | tojson }};
+
+function selectMode(id, btn) {
+  currentMode = id;
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.style.borderColor = b.dataset.id === id ? 'var(--primary)' : 'var(--border)';
+    b.style.color = b.dataset.id === id ? 'var(--primary-light)' : 'var(--text-secondary)';
+    b.style.background = b.dataset.id === id ? 'var(--primary-glow)' : 'var(--bg-elevated)';
+  });
+  const labels = {
+    daily_conversation: 'Daily Conversation',
+    self_introduction: 'Self Introduction',
+    interview: 'Interview Practice',
+    college: 'College Talk',
+    office: 'Office Communication',
+    customer: 'Customer Service',
+    asking_help: 'Asking for Help',
+    daily_life: 'Daily Life Situations',
+  };
+  document.getElementById('selected-mode-label').textContent = `Mode: ${labels[id] || id}`;
+}
+
+function setTopicDuration(dur, btn) {
+  currentTopicDuration = dur;
+  document.querySelectorAll('#topic-tabs .tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  renderTopics();
+}
+
+function renderTopics() {
+  const topics = dailyTopics[currentTopicDuration] || [];
+  const list = document.getElementById('daily-topics-list');
+  list.innerHTML = topics.map(t => `
+    <div style="padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius-md);
+                cursor:pointer;font-size:13px;color:var(--text-secondary);margin-bottom:6px;
+                transition:all 0.2s;display:flex;align-items:center;justify-content:space-between"
+         onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='transparent'"
+         onclick="useTopic('${t.replace(/'/g, "\\'")}')">
+      <span>${t}</span>
+      <span style="font-size:11px;color:var(--text-muted)">${currentTopicDuration}</span>
+    </div>`).join('');
+}
+
+async function useTopic(topic) {
+  document.getElementById('user-text').placeholder = `Write about: "${topic}"\n\nStart typing your response...`;
+  document.getElementById('topic-hints').style.display = 'block';
+
+  const hintsEl = document.getElementById('hint-points');
+  hintsEl.innerHTML = '<div class="spinner"></div>';
+
+  try {
+    const data = await apiCall('/api/communication/topic-prompt', 'POST', {
+      topic, duration: currentTopicDuration
+    });
+    hintsEl.innerHTML = data.points.map(p =>
+      `<div style="font-size:13px;color:var(--text-primary);padding:6px 10px;
+                   background:var(--bg-elevated);border-radius:var(--radius-sm)">
+         • ${p}
+       </div>`).join('');
+  } catch {
+    hintsEl.innerHTML = '';
+  }
+}
+
+document.getElementById('user-text').addEventListener('input', (e) => {
+  document.getElementById('char-count').textContent = `${e.target.value.length} characters`;
+});
+
+function clearText() {
+  document.getElementById('user-text').value = '';
+  document.getElementById('char-count').textContent = '0 characters';
+  document.getElementById('topic-hints').style.display = 'none';
+}
+
+async function evaluateText() {
+  const text = document.getElementById('user-text').value.trim();
+  if (!text) { showToast('Please write something first', 'warning'); return; }
+
+  const btn = document.getElementById('eval-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Analyzing...';
+
+  const panel = document.getElementById('feedback-panel');
+  panel.innerHTML = `<div class="loading-overlay">
+    <div class="spinner-lg spinner"></div>
+    <span>AI is analyzing your English...</span>
+  </div>`;
+
+  try {
+    const result = await apiCall('/api/communication/evaluate', 'POST', {
+      text, mode: currentMode
+    });
+    renderFeedback(result.feedback, text);
+    if (result.new_badges.length) showToast('🏅 Badge unlocked!', 'success');
+    showToast(`+${result.xp_result.xp_awarded} XP earned!`, 'success');
+    loadHistory();
+  } catch (e) {
+    panel.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="sparkles"></i> Evaluate My English';
+    lucide.createIcons();
+  }
+}
+
+function renderFeedback(fb, original) {
+  const panel = document.getElementById('feedback-panel');
+  const avgScore = ((fb.grammar_score + fb.vocabulary_score + fb.clarity_score + fb.naturalness_score) / 4).toFixed(1);
+
+  const scoreColor = (s) => s >= 8 ? 'var(--success)' : s >= 6 ? 'var(--warning)' : 'var(--danger)';
+
+  panel.innerHTML = `
+    <div class="animate-in">
+      <div style="font-size:14px;font-weight:700;color:var(--text-muted);margin-bottom:16px">AI FEEDBACK</div>
+
+      <!-- Score Grid -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
+        ${[['Grammar', fb.grammar_score], ['Vocabulary', fb.vocabulary_score],
+           ['Clarity', fb.clarity_score], ['Natural', fb.naturalness_score]].map(([label, score]) => `
+          <div style="text-align:center;padding:12px;background:var(--bg-elevated);border-radius:var(--radius-md)">
+            <div style="font-size:24px;font-weight:800;color:${scoreColor(score)}">${score}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${label}</div>
+          </div>`).join('')}
+      </div>
+
+      <!-- Before/After -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+        <div style="padding:12px;background:hsla(0,84%,60%,0.08);border-radius:var(--radius-md);border:1px solid hsla(0,84%,60%,0.3)">
+          <div style="font-size:11px;font-weight:700;color:var(--danger);margin-bottom:6px">YOUR SENTENCE</div>
+          <div style="font-size:14px;color:var(--text-secondary)">${original}</div>
+        </div>
+        <div style="padding:12px;background:hsla(142,71%,45%,0.08);border-radius:var(--radius-md);border:1px solid hsla(142,71%,45%,0.3)">
+          <div style="font-size:11px;font-weight:700;color:var(--success);margin-bottom:6px">BETTER SENTENCE</div>
+          <div style="font-size:14px;color:var(--text-primary)">${fb.better_sentence}</div>
+        </div>
+      </div>
+
+      <!-- Explanation -->
+      ${fb.simple_explanation ? `<div style="padding:12px;background:var(--bg-elevated);border-radius:var(--radius-md);
+                                              font-size:14px;color:var(--text-primary);margin-bottom:12px;line-height:1.7">
+        💡 ${fb.simple_explanation}
+      </div>` : ''}
+
+      <!-- Hindi tip -->
+      ${fb.hindi_tip ? `<div style="padding:10px 12px;background:hsla(38,92%,58%,0.08);border-radius:var(--radius-md);
+                                    font-size:13px;color:var(--warning);margin-bottom:12px;border:1px solid hsla(38,92%,58%,0.2)">
+        🇮🇳 ${fb.hindi_tip}
+      </div>` : ''}
+
+      <!-- New Words -->
+      ${fb.new_words?.length ? `<div style="margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:8px">NEW WORDS TO LEARN</div>
+        ${fb.new_words.map(w => `
+          <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span style="font-weight:700;color:var(--primary-light);font-size:14px;min-width:80px">${w.word}</span>
+            <div>
+              <div style="font-size:13px;color:var(--text-primary)">${w.meaning}</div>
+              <div style="font-size:12px;color:var(--text-muted);font-style:italic">"${w.usage}"</div>
+            </div>
+          </div>`).join('')}
+      </div>` : ''}
+
+      <!-- Encouragement -->
+      <div style="padding:12px;background:var(--primary-glow);border-radius:var(--radius-md);
+                  font-size:14px;color:var(--primary-light);font-weight:500">
+        🌟 ${fb.encouragement}
+      </div>
+    </div>`;
+}
+
+async function loadHistory() {
+  try {
+    const sessions = await apiCall('/api/communication/history');
+    const el = document.getElementById('session-history');
+    if (!sessions.length) {
+      el.innerHTML = '<p class="text-muted text-small">No sessions yet. Evaluate your first sentence!</p>';
+      return;
+    }
+    el.innerHTML = sessions.slice(0, 5).map(s => `
+      <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:4px">${s.user_text.substring(0,60)}...</div>
+        <div style="display:flex;gap:8px">
+          <span class="badge badge-success">G: ${s.grammar_score}</span>
+          <span class="badge badge-info">V: ${s.vocabulary_score}</span>
+          <span class="badge badge-primary">C: ${s.clarity_score}</span>
+        </div>
+      </div>`).join('');
+  } catch {}
+}
+
+// Init
+selectMode('daily_conversation');
+renderTopics();
+loadHistory();
+</script>
+{% endblock %}

@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+{% block title %}Daily Roadmap{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+  <h1 class="page-title">🗺️ Daily Roadmap</h1>
+  <p class="page-subtitle">Your personalized 90-day journey to becoming job-ready</p>
+</div>
+
+<!-- Onboarding Modal -->
+<div id="onboarding-modal" style="display:none;position:fixed;inset:0;z-index:200;
+     background:hsla(0,0%,0%,0.7);backdrop-filter:blur(4px);overflow-y:auto">
+  <div style="max-width:600px;margin:40px auto;background:var(--bg-surface);border-radius:var(--radius-xl);
+              padding:32px;border:1px solid var(--border)">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-size:48px;margin-bottom:8px">🚀</div>
+      <h2 style="font-size:24px;font-weight:800;color:var(--text-primary)">Set Up Your Learning Path</h2>
+      <p style="color:var(--text-secondary);margin-top:8px">Tell us about yourself so we can create your personalized roadmap!</p>
+    </div>
+
+    <div class="grid-2" style="gap:16px">
+      <div class="form-group">
+        <label class="form-label">Your Name</label>
+        <input type="text" class="form-control" id="ob-name" placeholder="Enter your name" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Main Goal</label>
+        <select class="form-control" id="ob-goal">
+          <option>Get a software job in 90 days</option>
+          <option>Pass competitive exam (SSC/Bank)</option>
+          <option>Improve English speaking</option>
+          <option>Learn programming from scratch</option>
+          <option>Become job-ready for IT</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="font-size:14px;font-weight:700;color:var(--text-secondary);margin:16px 0 12px">Rate your current level (1=Beginner, 10=Expert)</div>
+
+    <div class="grid-2" style="gap:12px">
+      <div class="form-group">
+        <label class="form-label">English Level</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="range" min="1" max="10" value="3" id="ob-english" oninput="updateSlider(this,'ob-english-val')" style="flex:1">
+          <span id="ob-english-val" style="font-weight:700;color:var(--primary-light);min-width:24px">3</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Typing Speed (WPM)</label>
+        <input type="number" class="form-control" id="ob-typing" value="20" min="5" max="120" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Communication Level</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="range" min="1" max="10" value="2" id="ob-comm" oninput="updateSlider(this,'ob-comm-val')" style="flex:1">
+          <span id="ob-comm-val" style="font-weight:700;color:var(--primary-light);min-width:24px">2</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Aptitude Level</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="range" min="1" max="10" value="3" id="ob-aptitude" oninput="updateSlider(this,'ob-aptitude-val')" style="flex:1">
+          <span id="ob-aptitude-val" style="font-weight:700;color:var(--primary-light);min-width:24px">3</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Reasoning Level</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="range" min="1" max="10" value="3" id="ob-reasoning" oninput="updateSlider(this,'ob-reasoning-val')" style="flex:1">
+          <span id="ob-reasoning-val" style="font-weight:700;color:var(--primary-light);min-width:24px">3</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Programming Level</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="range" min="1" max="10" value="1" id="ob-prog" oninput="updateSlider(this,'ob-prog-val')" style="flex:1">
+          <span id="ob-prog-val" style="font-weight:700;color:var(--primary-light);min-width:24px">1</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Daily Available Time</label>
+      <div class="toggle-group">
+        <button class="toggle-btn" onclick="setTime(30,this)">30 min</button>
+        <button class="toggle-btn active" onclick="setTime(60,this)">1 hour</button>
+        <button class="toggle-btn" onclick="setTime(90,this)">1.5 hours</button>
+        <button class="toggle-btn" onclick="setTime(120,this)">2 hours</button>
+      </div>
+    </div>
+
+    <button class="btn btn-cta btn-full mt-16" onclick="generateRoadmap()" id="generate-btn">
+      🚀 Generate My Personalized Roadmap
+    </button>
+  </div>
+</div>
+
+<!-- Main Content (shown after roadmap exists) -->
+<div id="roadmap-content" style="display:none">
+
+  <!-- Day Header -->
+  <div class="card mb-20 animate-in" style="background:var(--gradient-primary);border:none;color:white">
+    <div class="flex items-center justify-between" style="flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-size:13px;opacity:0.8;margin-bottom:4px" id="phase-label">Beginner Phase</div>
+        <div style="font-size:28px;font-weight:800" id="day-label">Day 1</div>
+        <div style="font-size:14px;opacity:0.8;margin-top:4px" id="theme-label">Building Foundations</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:32px;font-weight:900" id="completion-pct">0%</div>
+        <div style="font-size:13px;opacity:0.8">Complete</div>
+        <div style="font-size:13px;opacity:0.7;margin-top:4px" id="xp-earned-label">0 XP earned today</div>
+      </div>
+    </div>
+    <div class="progress-bar mt-16" style="background:rgba(255,255,255,0.2);height:10px">
+      <div class="progress-fill" id="day-progress-bar" style="background:white;width:0%"></div>
+    </div>
+  </div>
+
+  <!-- Daily Quote -->
+  <div class="card mb-20 animate-in" style="animation-delay:0.05s;border-left:4px solid var(--accent)">
+    <div style="font-size:15px;font-style:italic;color:var(--text-primary)" id="daily-quote">
+      "Every expert was once a beginner. Start today!"
+    </div>
+  </div>
+
+  <!-- Tasks -->
+  <div class="mb-20 animate-in" style="animation-delay:0.1s">
+    <div style="font-size:18px;font-weight:700;margin-bottom:16px;color:var(--text-primary)">📋 Today's Tasks</div>
+    <div id="tasks-grid" style="display:flex;flex-direction:column;gap:12px"></div>
+  </div>
+
+  <!-- Bottom Row -->
+  <div class="grid-2 animate-in" style="animation-delay:0.15s">
+    <div class="card">
+      <div class="card-title mb-12">🎯 Focus Areas</div>
+      <div id="focus-areas"></div>
+    </div>
+    <div class="card">
+      <div class="card-title mb-12">👀 Tomorrow's Preview</div>
+      <div id="tomorrow-preview" style="font-size:14px;color:var(--text-secondary)"></div>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div class="card mt-20 animate-in" style="animation-delay:0.2s">
+    <div class="flex items-center justify-between mb-16">
+      <div class="card-title">📅 Your Journey History</div>
+      <button class="btn btn-sm btn-ghost" onclick="showOnboarding()">🔄 Reset Roadmap</button>
+    </div>
+    <div id="history-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px">
+      <div class="loading-overlay"><div class="spinner"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- No roadmap state -->
+<div id="no-roadmap-state" style="display:none">
+  <div class="empty-state">
+    <div class="empty-state-icon">🗺️</div>
+    <h3>No Roadmap Yet</h3>
+    <p>Create your personalized daily roadmap to start your 90-day journey!</p>
+    <button class="btn btn-cta mt-16" onclick="showOnboarding()">🚀 Create My Roadmap</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let dailyMinutes = 60;
+let currentRoadmap = null;
+
+function updateSlider(input, valId) {
+  document.getElementById(valId).textContent = input.value;
+}
+
+function setTime(mins, btn) {
+  dailyMinutes = mins;
+  btn.closest('.toggle-group').querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function showOnboarding() {
+  document.getElementById('onboarding-modal').style.display = 'block';
+  document.getElementById('roadmap-content').style.display = 'none';
+  document.getElementById('no-roadmap-state').style.display = 'none';
+}
+
+async function generateRoadmap() {
+  const btn = document.getElementById('generate-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating with AI...';
+
+  const payload = {
+    name: document.getElementById('ob-name').value || 'Student',
+    goal: document.getElementById('ob-goal').value,
+    english_level: parseInt(document.getElementById('ob-english').value),
+    typing_speed: parseInt(document.getElementById('ob-typing').value),
+    communication_level: parseInt(document.getElementById('ob-comm').value),
+    aptitude_level: parseInt(document.getElementById('ob-aptitude').value),
+    reasoning_level: parseInt(document.getElementById('ob-reasoning').value),
+    programming_level: parseInt(document.getElementById('ob-prog').value),
+    daily_minutes: dailyMinutes,
+  };
+
+  try {
+    const data = await apiCall('/api/roadmap/generate', 'POST', payload);
+    document.getElementById('onboarding-modal').style.display = 'none';
+    currentRoadmap = data.roadmap;
+    renderRoadmap(data.roadmap);
+    showToast('Your personalized roadmap is ready! 🚀', 'success');
+  } catch (e) {
+    showToast('Could not generate roadmap: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🚀 Generate My Personalized Roadmap';
+  }
+}
+
+function renderRoadmap(roadmap) {
+  document.getElementById('no-roadmap-state').style.display = 'none';
+  document.getElementById('roadmap-content').style.display = 'block';
+  const plan = roadmap.plan;
+  const completed = roadmap.completed_tasks;
+  const pct = roadmap.completion_percent;
+
+  document.getElementById('phase-label').textContent = `${plan.phase} Phase`;
+  document.getElementById('day-label').textContent = `Day ${roadmap.day_number}`;
+  document.getElementById('theme-label').textContent = plan.theme;
+  document.getElementById('completion-pct').textContent = `${pct}%`;
+  document.getElementById('day-progress-bar').style.width = `${pct}%`;
+  document.getElementById('xp-earned-label').textContent = `${roadmap.xp_earned} XP earned today`;
+  document.getElementById('daily-quote').textContent = `"${plan.daily_quote || 'Keep going! You are doing great!'}"`;
+
+  // Tasks
+  const tasksGrid = document.getElementById('tasks-grid');
+  const tasks = plan.tasks || [];
+  tasksGrid.innerHTML = tasks.map(task => {
+    const done = completed.includes(task.id);
+    return `
+      <div style="display:flex;align-items:center;gap:16px;padding:16px;
+                  background:${done?'hsla(142,71%,45%,0.08)':'var(--bg-card)'};
+                  border:1px solid ${done?'var(--success)':'var(--border)'};
+                  border-radius:var(--radius-md);transition:all 0.3s" id="task-${task.id}">
+        <div style="font-size:28px;flex-shrink:0">${done?'✅':task.icon}</div>
+        <div style="flex:1">
+          <div style="font-size:15px;font-weight:600;color:${done?'var(--text-muted)':'var(--text-primary)'};
+                      text-decoration:${done?'line-through':'none'}">${task.title}</div>
+          <div style="font-size:13px;color:var(--text-muted)">${task.description}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px">
+            ⏱️ ${task.duration_minutes} min • +${task.xp_reward} XP
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+          <a href="${task.link}" class="btn btn-sm ${done?'btn-ghost':'btn-primary'}" style="${done?'opacity:0.6':''}">
+            ${done?'Done ✓':'Start →'}
+          </a>
+          ${!done ? `<button class="btn btn-sm btn-ghost" onclick="markDone('${task.id}',${task.xp_reward})">
+            Mark Done
+          </button>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  // Focus areas
+  const focusEl = document.getElementById('focus-areas');
+  focusEl.innerHTML = (plan.focus_areas||[]).map(f =>
+    `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px">
+       <span style="color:var(--primary)">→</span><span>${f}</span>
+     </div>`).join('');
+
+  document.getElementById('tomorrow-preview').textContent = plan.tomorrow_preview || 'Complete today\'s tasks to unlock tomorrow\'s plan!';
+
+  loadHistory();
+}
+
+async function markDone(taskId, xpReward) {
+  try {
+    const data = await apiCall('/api/roadmap/complete-task', 'POST', { task_id: taskId, xp_reward: xpReward });
+    showToast(`Task completed! +${xpReward} XP`, 'success');
+    if (data.all_done) showToast('🎉 All tasks complete! Amazing!', 'success', 5000);
+    // Reload roadmap
+    loadTodayRoadmap();
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+async function loadTodayRoadmap() {
+  try {
+    const data = await apiCall('/api/roadmap/today');
+    if (data.needs_setup) {
+      showOnboarding();
+      return;
+    }
+    if (!data.roadmap) {
+      document.getElementById('no-roadmap-state').style.display = 'block';
+      return;
+    }
+    currentRoadmap = data.roadmap;
+    renderRoadmap(data.roadmap);
+  } catch (e) {
+    document.getElementById('no-roadmap-state').style.display = 'block';
+  }
+}
+
+async function loadHistory() {
+  try {
+    const history = await apiCall('/api/roadmap/history');
+    const grid = document.getElementById('history-grid');
+    if (!history.length) {
+      grid.innerHTML = '<p class="text-muted text-small">Complete your first day to see history!</p>';
+      return;
+    }
+    grid.innerHTML = history.slice(0, 30).map(h => `
+      <div style="text-align:center;padding:8px;background:${h.completion===100?'hsla(142,71%,45%,0.1)':'var(--bg-elevated)'};
+                  border-radius:var(--radius-md);border:1px solid ${h.completion===100?'var(--success)':'var(--border)'}">
+        <div style="font-size:18px">${h.completion===100?'✅':h.completion>50?'🔆':'📅'}</div>
+        <div style="font-size:12px;font-weight:700;color:var(--text-primary)">Day ${h.day_number}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${h.completion}%</div>
+      </div>`).join('');
+  } catch {}
+}
+
+// Init
+document.addEventListener('DOMContentLoaded', async () => {
+  const data = await apiCall('/api/roadmap/today').catch(()=>null);
+  if (!data || data.needs_setup) {
+    showOnboarding();
+  } else if (!data.roadmap) {
+    document.getElementById('no-roadmap-state').style.display = 'block';
+  } else {
+    renderRoadmap(data.roadmap);
+  }
+});
+</script>
+{% endblock %}

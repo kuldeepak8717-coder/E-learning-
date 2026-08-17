@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+{% block title %}Progress{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+  <h1 class="page-title">📊 My Progress</h1>
+  <p class="page-subtitle">Track your learning journey — charts, analytics and AI recommendations</p>
+</div>
+
+<!-- Stats Overview -->
+<div class="grid-4 mb-24 animate-in" id="overview-stats">
+  <div class="loading-overlay" style="grid-column:1/-1"><div class="spinner"></div></div>
+</div>
+
+<!-- Charts Row -->
+<div class="grid-2 mb-24 animate-in" style="animation-delay:0.1s">
+  <div class="card">
+    <div class="card-title mb-16">📈 Weekly Quiz Scores</div>
+    <canvas id="weeklyQuizChart" height="220"></canvas>
+  </div>
+  <div class="card">
+    <div class="card-title mb-16">⌨️ Typing Speed Trend</div>
+    <canvas id="weeklyTypingChart" height="220"></canvas>
+  </div>
+</div>
+
+<!-- Skill Radar -->
+<div class="grid-2 mb-24 animate-in" style="animation-delay:0.15s">
+  <div class="card">
+    <div class="card-title mb-16">🕸️ Skill Radar</div>
+    <canvas id="skillRadarChart" height="280"></canvas>
+  </div>
+  <div class="card">
+    <div class="card-title mb-16">📊 Quiz Performance by Subject</div>
+    <canvas id="subjectBarChart" height="280"></canvas>
+  </div>
+</div>
+
+<!-- AI Analysis -->
+<div class="card mb-24 animate-in" style="animation-delay:0.2s">
+  <div class="flex items-center justify-between mb-16">
+    <div class="card-title">🤖 AI Performance Analysis</div>
+    <button class="btn btn-primary btn-sm" onclick="runAnalysis()" id="analyze-btn">
+      <i data-lucide="sparkles"></i> Analyze My Performance
+    </button>
+  </div>
+  <div id="ai-analysis-area">
+    <p class="text-muted text-small">Click "Analyze" to get AI-powered insights on your learning!</p>
+  </div>
+</div>
+
+<!-- Subject Details -->
+<div class="card animate-in" style="animation-delay:0.25s">
+  <div class="card-title mb-20">📋 Subject Details</div>
+  <div id="subject-details">
+    <div class="loading-overlay"><div class="spinner"></div></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let overviewData = null;
+
+async function loadOverview() {
+  try {
+    overviewData = await apiCall('/api/progress/overview');
+    renderOverview(overviewData);
+    renderSubjectDetails(overviewData);
+    loadCharts();
+  } catch (e) {
+    showToast('Could not load progress data', 'error');
+  }
+}
+
+function renderOverview(data) {
+  const user = data.user;
+  const typing = data.typing_stats || {};
+  const comm = data.comm_stats || {};
+  const roadmap = data.roadmap_stats || {};
+
+  document.getElementById('overview-stats').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-icon" style="background:hsla(250,84%,60%,0.15)">🗓️</div>
+      <div class="stat-info">
+        <div class="stat-value">${roadmap.total_days || 0}</div>
+        <div class="stat-label">Days Studied</div>
+        <div class="stat-change up">${roadmap.completed_days || 0} days complete</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:hsla(165,82%,51%,0.15)">⌨️</div>
+      <div class="stat-info">
+        <div class="stat-value">${typing.best_wpm || 0}</div>
+        <div class="stat-label">Best WPM</div>
+        <div class="stat-change">Avg: ${typing.avg_wpm || 0}</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:hsla(142,71%,45%,0.15)">🗣️</div>
+      <div class="stat-info">
+        <div class="stat-value">${comm.total_sessions || 0}</div>
+        <div class="stat-label">Comm Sessions</div>
+        <div class="stat-change">Avg Grammar: ${comm.avg_grammar || 0}/10</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:hsla(250,84%,60%,0.15)">⚡</div>
+      <div class="stat-info">
+        <div class="stat-value">${roadmap.total_xp_earned || 0}</div>
+        <div class="stat-label">XP from Roadmap</div>
+        <div class="stat-change up">Total XP: ${user.xp}</div>
+      </div>
+    </div>`;
+}
+
+function renderSubjectDetails(data) {
+  const qs = data.quiz_stats || {};
+  const subjects = ['english', 'vocabulary', 'aptitude', 'reasoning', 'verbal', 'programming'];
+  const icons = { english:'📝', vocabulary:'📖', aptitude:'➗', reasoning:'🧠', verbal:'📖', programming:'💻' };
+
+  const el = document.getElementById('subject-details');
+  if (Object.keys(qs).length === 0) {
+    el.innerHTML = '<p class="text-muted">No quiz data yet. Take some quizzes to see subject stats!</p>';
+    return;
+  }
+  el.innerHTML = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+    <thead><tr style="font-size:12px;color:var(--text-muted)">
+      <th style="padding:10px 8px;text-align:left;border-bottom:1px solid var(--border)">Subject</th>
+      <th style="padding:10px 8px;text-align:right;border-bottom:1px solid var(--border)">Quizzes</th>
+      <th style="padding:10px 8px;text-align:right;border-bottom:1px solid var(--border)">Questions</th>
+      <th style="padding:10px 8px;text-align:right;border-bottom:1px solid var(--border)">Avg Accuracy</th>
+      <th style="padding:10px 8px;text-align:right;border-bottom:1px solid var(--border)">Best</th>
+    </tr></thead>
+    <tbody>
+    ${subjects.map(s => {
+      const d = qs[s];
+      if (!d) return `<tr><td style="padding:10px 8px;font-size:14px;border-bottom:1px solid var(--border)">
+        ${icons[s]||'📊'} ${s.charAt(0).toUpperCase()+s.slice(1)}</td>
+        <td colspan="4" style="padding:10px 8px;font-size:13px;color:var(--text-muted);border-bottom:1px solid var(--border)">No quizzes yet</td></tr>`;
+      const color = d.avg_accuracy >= 70 ? 'var(--success)' : d.avg_accuracy >= 50 ? 'var(--warning)' : 'var(--danger)';
+      return `<tr style="font-size:14px;border-bottom:1px solid var(--border)">
+        <td style="padding:10px 8px">${icons[s]||'📊'} ${s.charAt(0).toUpperCase()+s.slice(1)}</td>
+        <td style="padding:10px 8px;text-align:right">${d.count}</td>
+        <td style="padding:10px 8px;text-align:right">${d.total_questions}</td>
+        <td style="padding:10px 8px;text-align:right;font-weight:700;color:${color}">${d.avg_accuracy}%</td>
+        <td style="padding:10px 8px;text-align:right;color:var(--success)">${d.best_accuracy}%</td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+async function loadCharts() {
+  const chartColors = {
+    grid: 'rgba(255,255,255,0.05)',
+    ticks: '#777',
+  };
+
+  try {
+    const weekly = await apiCall('/api/progress/weekly-chart');
+    new Chart(document.getElementById('weeklyQuizChart'), {
+      type: 'line',
+      data: {
+        labels: weekly.labels,
+        datasets: [{
+          data: weekly.quiz_scores,
+          borderColor: 'hsl(250,84%,60%)',
+          backgroundColor: 'hsla(250,84%,60%,0.1)',
+          borderWidth: 2, fill: true, tension: 0.4,
+          pointBackgroundColor: 'hsl(250,84%,60%)', pointRadius: 5,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: chartColors.grid }, ticks: { color: chartColors.ticks } },
+          y: { grid: { color: chartColors.grid }, ticks: { color: chartColors.ticks }, min: 0, max: 100 },
+        }
+      }
+    });
+
+    new Chart(document.getElementById('weeklyTypingChart'), {
+      type: 'bar',
+      data: {
+        labels: weekly.labels,
+        datasets: [{
+          data: weekly.wpm_values,
+          backgroundColor: 'hsla(165,82%,51%,0.7)',
+          borderColor: 'hsl(165,82%,51%)',
+          borderWidth: 1, borderRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: chartColors.grid }, ticks: { color: chartColors.ticks } },
+          y: { grid: { color: chartColors.grid }, ticks: { color: chartColors.ticks }, min: 0 },
+        }
+      }
+    });
+  } catch {}
+
+  try {
+    const radar = await apiCall('/api/progress/skill-radar');
+    new Chart(document.getElementById('skillRadarChart'), {
+      type: 'radar',
+      data: {
+        labels: radar.labels,
+        datasets: [{
+          data: radar.scores,
+          backgroundColor: 'hsla(250,84%,60%,0.2)',
+          borderColor: 'hsl(250,84%,60%)',
+          borderWidth: 2,
+          pointBackgroundColor: 'hsl(250,84%,60%)',
+          pointRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          r: {
+            min: 0, max: 100,
+            grid: { color: 'rgba(255,255,255,0.1)' },
+            ticks: { color: '#777', backdropColor: 'transparent', stepSize: 25 },
+            pointLabels: { color: '#aaa', font: { size: 12 } },
+          }
+        }
+      }
+    });
+
+    // Subject bar chart
+    const qs = overviewData?.quiz_stats || {};
+    const subjects = ['english','aptitude','reasoning','verbal','programming'];
+    const scores = subjects.map(s => qs[s]?.avg_accuracy || 0);
+    const labels = subjects.map(s => s.charAt(0).toUpperCase()+s.slice(1));
+
+    new Chart(document.getElementById('subjectBarChart'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          data: scores,
+          backgroundColor: scores.map(s => s>=70?'hsla(142,71%,45%,0.7)':s>=50?'hsla(38,92%,58%,0.7)':'hsla(0,84%,60%,0.7)'),
+          borderRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { color: chartColors.grid }, ticks: { color: chartColors.ticks } },
+          y: { grid: { color: chartColors.grid }, ticks: { color: chartColors.ticks }, min: 0, max: 100 },
+        }
+      }
+    });
+  } catch {}
+}
+
+async function runAnalysis() {
+  const btn = document.getElementById('analyze-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Analyzing...';
+
+  const area = document.getElementById('ai-analysis-area');
+  area.innerHTML = `<div class="loading-overlay"><div class="spinner-lg spinner"></div>
+    <span>AI is analyzing your performance...</span></div>`;
+
+  try {
+    const data = await apiCall('/api/progress/analyze', 'POST');
+    area.innerHTML = `
+      <div class="animate-in">
+        <div class="grid-2 mb-16">
+          <div style="padding:16px;background:hsla(142,71%,45%,0.1);border-radius:var(--radius-md);border-left:3px solid var(--success)">
+            <div style="font-size:12px;font-weight:700;color:var(--success);margin-bottom:8px">💪 STRONG SKILLS</div>
+            ${data.strong_skills.map(s=>`<div style="font-size:14px;color:var(--text-primary);padding:4px 0">✓ ${s}</div>`).join('')}
+          </div>
+          <div style="padding:16px;background:hsla(0,84%,60%,0.1);border-radius:var(--radius-md);border-left:3px solid var(--danger)">
+            <div style="font-size:12px;font-weight:700;color:var(--danger);margin-bottom:8px">⚠️ NEEDS WORK</div>
+            ${data.weak_skills.map(s=>`<div style="font-size:14px;color:var(--text-primary);padding:4px 0">→ ${s}</div>`).join('')}
+          </div>
+        </div>
+
+        <div style="padding:16px;background:var(--bg-elevated);border-radius:var(--radius-md);margin-bottom:12px">
+          <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px">🎯 IMPROVEMENT TIPS</div>
+          ${data.improvement_tips.map(t=>`<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:14px">
+            <strong style="color:var(--primary-light)">${t.skill}:</strong> ${t.tip}
+          </div>`).join('')}
+        </div>
+
+        <div style="padding:16px;background:var(--primary-glow);border-radius:var(--radius-md);border:1px solid var(--primary);margin-bottom:12px">
+          <div style="font-size:12px;font-weight:700;color:var(--primary-light);margin-bottom:8px">📅 TOMORROW'S FOCUS</div>
+          <div style="font-size:14px;color:var(--text-primary)">${data.tomorrow_focus}</div>
+        </div>
+
+        <div style="padding:16px;background:hsla(38,92%,58%,0.1);border-radius:var(--radius-md);border:1px solid var(--warning)">
+          <div style="font-size:14px;color:var(--text-primary);font-style:italic">🌟 ${data.motivational_message}</div>
+        </div>
+      </div>`;
+  } catch (e) {
+    area.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="sparkles"></i> Analyze My Performance';
+    lucide.createIcons();
+  }
+}
+
+loadOverview();
+</script>
+{% endblock %}

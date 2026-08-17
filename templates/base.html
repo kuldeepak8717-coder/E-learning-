@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}SkillRise AI{% endblock %} — AI Personal Skill Platform</title>
+  <meta name="description" content="{% block description %}SkillRise AI — Your personal AI trainer for English, communication, aptitude, reasoning, typing and programming.{% endblock %}" />
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+  {% block extra_css %}{% endblock %}
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- Sidebar Overlay (mobile) -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- App Layout -->
+<div class="app-layout">
+
+  <!-- ── Sidebar ───────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <!-- Logo -->
+    <a class="sidebar-logo" href="/">
+      <div class="sidebar-logo-icon">🚀</div>
+      <span class="sidebar-logo-text">SkillRise AI</span>
+    </a>
+
+    <!-- Navigation -->
+    <nav class="sidebar-nav" role="navigation" aria-label="Main navigation">
+
+      <div class="nav-section-label">Main</div>
+      <a class="nav-item {% if request.endpoint == 'dashboard.index' %}active{% endif %}" href="/" id="nav-dashboard">
+        <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span>
+        <span class="nav-label">Dashboard</span>
+      </a>
+      <a class="nav-item {% if request.endpoint == 'roadmap.roadmap_page' %}active{% endif %}" href="/roadmap" id="nav-roadmap">
+        <span class="nav-icon"><i data-lucide="map"></i></span>
+        <span class="nav-label">Daily Roadmap</span>
+      </a>
+
+      <div class="nav-section-label" style="margin-top:12px">Learn</div>
+      <a class="nav-item {% if request.endpoint == 'notes.notes_page' %}active{% endif %}" href="/notes" id="nav-notes">
+        <span class="nav-icon"><i data-lucide="book-open"></i></span>
+        <span class="nav-label">Notes</span>
+      </a>
+      <a class="nav-item {% if request.endpoint == 'quiz.quiz_page' %}active{% endif %}" href="/quiz" id="nav-quiz">
+        <span class="nav-icon"><i data-lucide="clipboard-list"></i></span>
+        <span class="nav-label">Quiz</span>
+      </a>
+      <a class="nav-item {% if request.endpoint == 'typing.typing_page' %}active{% endif %}" href="/typing" id="nav-typing">
+        <span class="nav-icon"><i data-lucide="keyboard"></i></span>
+        <span class="nav-label">Typing Test</span>
+      </a>
+      <a class="nav-item {% if request.endpoint == 'communication.communication_page' %}active{% endif %}" href="/communication" id="nav-comm">
+        <span class="nav-icon"><i data-lucide="message-circle"></i></span>
+        <span class="nav-label">Communication</span>
+      </a>
+
+      <div class="nav-section-label" style="margin-top:12px">Practice</div>
+      <a class="nav-item {% if request.endpoint == 'reasoning.reasoning_page' %}active{% endif %}" href="/reasoning" id="nav-reasoning">
+        <span class="nav-icon"><i data-lucide="brain"></i></span>
+        <span class="nav-label">Reasoning</span>
+      </a>
+      <a class="nav-item {% if request.endpoint == 'aptitude.aptitude_page' %}active{% endif %}" href="/aptitude" id="nav-aptitude">
+        <span class="nav-icon"><i data-lucide="calculator"></i></span>
+        <span class="nav-label">Aptitude</span>
+      </a>
+      <a class="nav-item {% if request.endpoint == 'verbal.verbal_page' %}active{% endif %}" href="/verbal" id="nav-verbal">
+        <span class="nav-icon"><i data-lucide="book-text"></i></span>
+        <span class="nav-label">Verbal Ability</span>
+      </a>
+      <a class="nav-item {% if request.endpoint == 'programming.programming_page' %}active{% endif %}" href="/programming" id="nav-prog">
+        <span class="nav-icon"><i data-lucide="code-2"></i></span>
+        <span class="nav-label">Programming</span>
+      </a>
+
+      <div class="nav-section-label" style="margin-top:12px">AI Tools</div>
+      <a class="nav-item {% if request.endpoint == 'coach.coach_page' %}active{% endif %}" href="/coach" id="nav-coach">
+        <span class="nav-icon"><i data-lucide="bot"></i></span>
+        <span class="nav-label">AI Coach</span>
+      </a>
+      <a class="nav-item {% if request.endpoint == 'image_gen.image_gen_page' %}active{% endif %}" href="/image-gen" id="nav-image">
+        <span class="nav-icon"><i data-lucide="image"></i></span>
+        <span class="nav-label">Image Generator</span>
+      </a>
+
+      <div class="nav-section-label" style="margin-top:12px">You</div>
+      <a class="nav-item {% if request.endpoint == 'progress.progress_page' %}active{% endif %}" href="/progress" id="nav-progress">
+        <span class="nav-icon"><i data-lucide="bar-chart-2"></i></span>
+        <span class="nav-label">Progress</span>
+      </a>
+      <a class="nav-item {% if request.endpoint == 'profile.profile_page' %}active{% endif %}" href="/profile" id="nav-profile">
+        <span class="nav-icon"><i data-lucide="user"></i></span>
+        <span class="nav-label">Profile</span>
+      </a>
+    </nav>
+
+    <!-- Sidebar Footer -->
+    <div class="sidebar-footer">
+      <a class="sidebar-user" href="/profile" id="sidebar-user-link">
+        <div class="user-avatar" id="sidebar-avatar">🎓</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebar-username">Student</div>
+          <div class="user-level" id="sidebar-level">Level 1 • Beginner</div>
+        </div>
+      </a>
+    </div>
+  </aside>
+
+  <!-- ── Main Content ────────────────────────────── -->
+  <div class="main-content">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <button class="topbar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+        <i data-lucide="panel-left"></i>
+      </button>
+
+      <div class="topbar-search">
+        <span class="search-icon"><i data-lucide="search"></i></span>
+        <input type="text" placeholder="Search topics, quizzes..." id="globalSearch" aria-label="Search" />
+      </div>
+
+      <div class="topbar-actions">
+        <div class="streak-chip" id="topbar-streak">
+          🔥 <span id="streak-count">0</span>
+        </div>
+        <div class="xp-chip" id="topbar-xp">
+          ⚡ <span id="xp-count">0</span> XP
+        </div>
+        <button class="topbar-action-btn" id="themeToggle" aria-label="Toggle theme" title="Toggle dark/light mode">
+          <i data-lucide="moon"></i>
+        </button>
+        <a href="/coach" class="topbar-action-btn" aria-label="Open AI Coach" title="AI Coach">
+          <i data-lucide="bot"></i>
+        </a>
+      </div>
+    </header>
+
+    <!-- Page Content -->
+    <main class="page-content" id="mainContent">
+      {% block content %}{% endblock %}
+    </main>
+
+  </div><!-- /main-content -->
+</div><!-- /app-layout -->
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ── Global JS ──────────────────────────────────── -->
+<script>
+// Initialize Lucide icons
+lucide.createIcons();
+
+// ── Theme Management ──────────────────────────
+const themeToggle = document.getElementById('themeToggle');
+const html = document.documentElement;
+
+function setTheme(theme) {
+  html.setAttribute('data-theme', theme);
+  localStorage.setItem('sr-theme', theme);
+  const icon = themeToggle.querySelector('[data-lucide]');
+  if (icon) {
+    icon.setAttribute('data-lucide', theme === 'dark' ? 'moon' : 'sun');
+    lucide.createIcons();
+  }
+}
+
+// Load saved theme
+const savedTheme = localStorage.getItem('sr-theme') || 'dark';
+setTheme(savedTheme);
+
+themeToggle.addEventListener('click', () => {
+  const current = html.getAttribute('data-theme');
+  setTheme(current === 'dark' ? 'light' : 'dark');
+});
+
+// ── Sidebar Toggle ────────────────────────────
+const sidebar = document.getElementById('sidebar');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+const sidebarToggle = document.getElementById('sidebarToggle');
+
+function isMobile() { return window.innerWidth <= 768; }
+
+function toggleSidebar() {
+  if (isMobile()) {
+    sidebar.classList.toggle('mobile-open');
+    sidebarOverlay.classList.toggle('active');
+  } else {
+    sidebar.classList.toggle('collapsed');
+    localStorage.setItem('sr-sidebar', sidebar.classList.contains('collapsed') ? 'collapsed' : 'open');
+  }
+}
+
+sidebarToggle.addEventListener('click', toggleSidebar);
+sidebarOverlay.addEventListener('click', () => {
+  sidebar.classList.remove('mobile-open');
+  sidebarOverlay.classList.remove('active');
+});
+
+// Restore sidebar state on desktop
+if (!isMobile()) {
+  const savedSidebar = localStorage.getItem('sr-sidebar');
+  if (savedSidebar === 'collapsed') sidebar.classList.add('collapsed');
+}
+
+// ── Toast Notifications ───────────────────────
+function showToast(message, type = 'info', duration = 3500) {
+  const container = document.getElementById('toastContainer');
+  const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `<span>${icons[type] || icons.info}</span><span>${message}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('removing');
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+window.showToast = showToast;
+
+// ── API Helper ────────────────────────────────
+async function apiCall(url, method = 'GET', body = null) {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Server error' }));
+    throw new Error(err.error || 'Request failed');
+  }
+  return res.json();
+}
+
+window.apiCall = apiCall;
+
+// ── Load User Stats (topbar) ──────────────────
+async function loadTopbarStats() {
+  try {
+    const data = await apiCall('/api/dashboard/stats');
+    const user = data.user;
+    document.getElementById('streak-count').textContent = user.streak;
+    document.getElementById('xp-count').textContent = user.xp.toLocaleString();
+    document.getElementById('sidebar-username').textContent = user.name;
+    document.getElementById('sidebar-avatar').textContent = user.avatar || '🎓';
+    document.getElementById('sidebar-level').textContent =
+      `Level ${user.level} • ${user.current_level}`;
+  } catch (e) {
+    // Silent fail — stats will load when user visits those pages
+  }
+}
+
+loadTopbarStats();
+
+// ── Global Search ─────────────────────────────
+const searchRoutes = {
+  'notes': '/notes', 'quiz': '/quiz', 'typing': '/typing',
+  'communication': '/communication', 'reasoning': '/reasoning',
+  'aptitude': '/aptitude', 'verbal': '/verbal', 'programming': '/programming',
+  'roadmap': '/roadmap', 'coach': '/coach', 'progress': '/progress',
+  'profile': '/profile', 'image': '/image-gen',
+};
+
+document.getElementById('globalSearch').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    const q = e.target.value.toLowerCase().trim();
+    for (const [key, route] of Object.entries(searchRoutes)) {
+      if (q.includes(key)) { window.location.href = route; return; }
+    }
+  }
+});
+</script>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

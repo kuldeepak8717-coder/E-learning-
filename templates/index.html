@@ -1,0 +1,560 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+  <div class="flex items-center justify-between" style="flex-wrap:wrap;gap:16px">
+    <div>
+      <h1 class="page-title" id="welcome-msg">Welcome back! 👋</h1>
+      <p class="page-subtitle" id="date-display">Loading today's plan...</p>
+    </div>
+    <div class="flex gap-8">
+      <button class="btn btn-sm btn-ghost" onclick="generateReport()" title="Download Progress Report">📄 Report</button>
+      <button class="btn btn-sm btn-ghost" onclick="injectRoadmap()" title="Inject Custom Syllabus JSON">📥 Inject</button>
+      <a href="/roadmap" class="btn btn-cta" id="start-training-btn">
+        <i data-lucide="play-circle"></i>
+        START TODAY'S TRAINING
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- ── Today's Overview ───────────────────────────── -->
+<div class="grid-4 mb-24" id="stats-grid">
+  <div class="stat-card">
+    <div class="stat-icon" style="background:hsla(250,84%,60%,0.15)">⚡</div>
+    <div class="stat-info">
+      <div class="stat-value" id="stat-xp">—</div>
+      <div class="stat-label">Total XP Earned</div>
+      <div class="stat-change up" id="stat-level">Level 1</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:hsla(38,92%,58%,0.15)">🔥</div>
+    <div class="stat-info">
+      <div class="stat-value" id="stat-streak">—</div>
+      <div class="stat-label">Day Streak</div>
+      <div class="stat-change up">Keep it going!</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:hsla(142,71%,45%,0.15)">✅</div>
+    <div class="stat-info">
+      <div class="stat-value" id="stat-completion">—%</div>
+      <div class="stat-label">Today's Completion</div>
+      <div class="stat-change" id="stat-completion-note">—</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon" style="background:hsla(165,82%,51%,0.15)">⌨️</div>
+    <div class="stat-info">
+      <div class="stat-value" id="stat-wpm">— WPM</div>
+      <div class="stat-label">Best Typing Speed</div>
+      <div class="stat-change" id="stat-wpm-note">Personal best</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Today's Progress Card ─────────────────────── -->
+<div class="grid-2 mb-24" style="grid-template-columns: 2fr 1fr">
+  <!-- Daily Progress -->
+  <div class="card animate-in" style="animation-delay:0.1s">
+    <div class="card-header">
+      <div>
+        <div class="card-title">📅 Today's Training Progress</div>
+        <div class="text-small text-muted" id="today-date-label">—</div>
+      </div>
+      <a href="/roadmap" class="btn btn-sm btn-secondary">View Plan</a>
+    </div>
+
+    <div id="today-progress-section">
+      <!-- Loading state -->
+      <div class="loading-overlay" id="progress-loading">
+        <div class="spinner"></div>
+        <span>Loading your plan...</span>
+      </div>
+
+      <!-- No roadmap state -->
+      <div class="empty-state" id="no-roadmap" style="display:none;padding:24px">
+        <div class="empty-state-icon">🗺️</div>
+        <h3>No Training Plan Yet</h3>
+        <p>Set up your personalized daily roadmap to get started!</p>
+        <a href="/roadmap" class="btn btn-primary mt-12">
+          <i data-lucide="map"></i> Create My Roadmap
+        </a>
+      </div>
+
+      <!-- Tasks list -->
+      <div id="tasks-list" style="display:none"></div>
+
+      <!-- Progress bar -->
+      <div id="progress-bar-section" style="display:none;margin-top:16px">
+        <div class="flex items-center justify-between mb-8">
+          <span class="text-small text-muted">Daily Progress</span>
+          <span class="text-small font-bold" id="progress-pct">0%</span>
+        </div>
+        <div class="progress-bar progress-bar-lg">
+          <div class="progress-fill" id="progress-bar" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Skill Levels -->
+  <div class="card animate-in" style="animation-delay:0.15s">
+    <div class="card-header">
+      <div class="card-title">📊 Skill Overview</div>
+    </div>
+    <div id="skill-bars">
+      <div class="loading-overlay">
+        <div class="spinner"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── XP Level Card ──────────────────────────────── -->
+<div class="card mb-24 animate-in" style="animation-delay:0.2s;background:var(--gradient-primary);border:none;color:white">
+  <div class="flex items-center justify-between" style="flex-wrap:wrap;gap:16px">
+    <div>
+      <div style="font-size:13px;opacity:0.8;margin-bottom:4px">CURRENT LEVEL</div>
+      <div style="font-size:28px;font-weight:800" id="level-display">Level 1 — Beginner</div>
+      <div style="font-size:14px;opacity:0.8;margin-top:4px" id="xp-to-next">0 XP to next level</div>
+    </div>
+    <div style="min-width:200px;flex:1;max-width:300px">
+      <div class="flex items-center justify-between mb-8" style="color:rgba(255,255,255,0.8);font-size:13px">
+        <span id="level-xp-current">0 XP</span>
+        <span id="level-xp-next">500 XP</span>
+      </div>
+      <div class="progress-bar" style="background:rgba(255,255,255,0.2);height:10px">
+        <div class="progress-fill" id="level-progress-bar"
+             style="background:white;width:0%"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Feature Cards Grid ─────────────────────────── -->
+<div class="mb-20">
+  <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;color:var(--text-primary)">🎯 Your Learning Modules</h2>
+  <div class="grid-features animate-in" style="animation-delay:0.25s">
+    <a href="/notes" class="feature-card" id="fc-notes">
+      <div class="feature-card-icon">📚</div>
+      <div class="feature-card-title">Notes</div>
+      <div class="feature-card-desc">Grammar, Aptitude, Programming & more</div>
+    </a>
+    <a href="/quiz" class="feature-card" id="fc-quiz">
+      <div class="feature-card-icon">📝</div>
+      <div class="feature-card-title">Quiz</div>
+      <div class="feature-card-desc">Test yourself with AI-generated questions</div>
+    </a>
+    <a href="/typing" class="feature-card" id="fc-typing">
+      <div class="feature-card-icon">⌨️</div>
+      <div class="feature-card-title">Typing</div>
+      <div class="feature-card-desc">Improve your WPM and accuracy</div>
+    </a>
+    <a href="/communication" class="feature-card" id="fc-comm">
+      <div class="feature-card-icon">🗣️</div>
+      <div class="feature-card-title">Communication</div>
+      <div class="feature-card-desc">AI English communication coach</div>
+    </a>
+    <a href="/reasoning" class="feature-card" id="fc-reasoning">
+      <div class="feature-card-icon">🧠</div>
+      <div class="feature-card-title">Reasoning</div>
+      <div class="feature-card-desc">Logical & analytical thinking</div>
+    </a>
+    <a href="/aptitude" class="feature-card" id="fc-aptitude">
+      <div class="feature-card-icon">➗</div>
+      <div class="feature-card-title">Aptitude</div>
+      <div class="feature-card-desc">Math, percentages, profit & more</div>
+    </a>
+    <a href="/verbal" class="feature-card" id="fc-verbal">
+      <div class="feature-card-icon">📖</div>
+      <div class="feature-card-title">Verbal Ability</div>
+      <div class="feature-card-desc">Synonyms, antonyms, comprehension</div>
+    </a>
+    <a href="/programming" class="feature-card" id="fc-prog">
+      <div class="feature-card-icon">💻</div>
+      <div class="feature-card-title">Programming</div>
+      <div class="feature-card-desc">Python, Java, C++, JavaScript & more</div>
+    </a>
+    <a href="/roadmap" class="feature-card" id="fc-roadmap" style="border-color:var(--primary)">
+      <div class="feature-card-icon">🗺️</div>
+      <div class="feature-card-title">Daily Roadmap</div>
+      <div class="feature-card-desc">Your personalized 90-day journey</div>
+    </a>
+    <a href="/image-gen" class="feature-card" id="fc-image">
+      <div class="feature-card-icon">🖼️</div>
+      <div class="feature-card-title">AI Image Gen</div>
+      <div class="feature-card-desc">Create study visuals with AI</div>
+    </a>
+    <a href="/progress" class="feature-card" id="fc-progress">
+      <div class="feature-card-icon">📊</div>
+      <div class="feature-card-title">Progress</div>
+      <div class="feature-card-desc">Charts, analytics & improvement tips</div>
+    </a>
+    <a href="/coach" class="feature-card" id="fc-coach" style="border-color:var(--accent)">
+      <div class="feature-card-icon">🤖</div>
+      <div class="feature-card-title">AI Coach</div>
+      <div class="feature-card-desc">Your personal AI study assistant</div>
+    </a>
+  </div>
+</div>
+
+<!-- ── Skill Radar & Streak Matrix ──────────────────── -->
+<div class="grid-2 mb-24 animate-in" style="animation-delay:0.28s">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🕸️ Skill Radar</div>
+    </div>
+    <canvas id="skillRadarChart" height="250"></canvas>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🔥 Activity Streak Matrix</div>
+    </div>
+    <div id="streak-matrix" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px;justify-content:center">
+      <!-- Squares injected by JS -->
+    </div>
+    <div class="text-small text-muted mt-8 text-center">Your last 90 days of activity</div>
+  </div>
+</div>
+
+<!-- ── Weekly Chart ────────────────────────────────── -->
+<div class="grid-2 mb-24 animate-in" style="animation-delay:0.3s">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">📈 Weekly Quiz Performance</div>
+    </div>
+    <canvas id="weeklyQuizChart" height="200"></canvas>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">⌨️ Weekly Typing Speed</div>
+    </div>
+    <canvas id="weeklyTypingChart" height="200"></canvas>
+  </div>
+</div>
+
+<!-- ── Badges ──────────────────────────────────────── -->
+<div class="card mb-24 animate-in" style="animation-delay:0.35s">
+  <div class="card-header">
+    <div class="card-title">🏆 Your Achievements</div>
+    <a href="/profile" class="btn btn-sm btn-ghost">View All</a>
+  </div>
+  <div id="badges-grid" style="display:flex;flex-wrap:wrap;gap:12px">
+    <div class="loading-overlay" style="padding:20px">
+      <div class="spinner"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  // Show date
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-IN', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  document.getElementById('today-date-label').textContent = dateStr;
+
+  // Load stats
+  try {
+    const data = await apiCall('/api/dashboard/stats');
+    updateDashboard(data);
+  } catch (e) {
+    showToast('Could not load stats. Please refresh.', 'error');
+  }
+
+  // Load weekly charts
+  loadWeeklyCharts();
+});
+
+function updateDashboard(data) {
+  const user = data.user;
+  const lp = data.level_progress;
+
+  // Welcome message
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  document.getElementById('welcome-msg').textContent = `${greeting}, ${user.name}! 👋`;
+
+  // Stats
+  document.getElementById('stat-xp').textContent = user.xp.toLocaleString();
+  document.getElementById('stat-level').textContent = `Level ${user.level} • ${lp.level_name}`;
+  document.getElementById('stat-streak').textContent = user.streak;
+  document.getElementById('stat-completion').textContent = `${data.today_completion}%`;
+  document.getElementById('stat-completion-note').textContent =
+    data.today_completion === 100 ? '🎉 All done!' :
+    data.today_completion > 50 ? '⬆️ Great progress!' : '📌 Keep going!';
+  document.getElementById('stat-completion-note').className =
+    'stat-change ' + (data.today_completion > 50 ? 'up' : '');
+  document.getElementById('stat-wpm').textContent = `${data.best_wpm} WPM`;
+
+  // Level progress
+  document.getElementById('level-display').textContent = `Level ${lp.current_level} — ${lp.level_name}`;
+  document.getElementById('xp-to-next').textContent = `${lp.xp_to_next} XP to ${lp.next_level_name}`;
+  document.getElementById('level-xp-current').textContent = `${lp.level_xp} XP`;
+  document.getElementById('level-xp-next').textContent = `500 XP`;
+  document.getElementById('level-progress-bar').style.width = `${lp.progress_percent}%`;
+
+  // Skill bars & Radar
+  renderSkillBars(data.skill_stats);
+  renderSkillRadar(data.skill_stats);
+
+  // Badges
+  renderBadges(data.badges);
+  
+  // Streak Matrix
+  renderStreakMatrix(data.active_dates || []);
+
+  // Today's roadmap tasks
+  renderBadges(data.badges);
+
+  // Today's roadmap tasks
+  loadTodayRoadmap();
+}
+
+function renderSkillBars(stats) {
+  const skills = [
+    { key: 'english', label: 'English', icon: '📝' },
+    { key: 'aptitude', label: 'Aptitude', icon: '➗' },
+    { key: 'reasoning', label: 'Reasoning', icon: '🧠' },
+    { key: 'programming', label: 'Programming', icon: '💻' },
+    { key: 'typing', label: 'Typing', icon: '⌨️' },
+    { key: 'verbal', label: 'Verbal', icon: '📖' },
+  ];
+
+  const container = document.getElementById('skill-bars');
+  container.innerHTML = skills.map(s => {
+    const score = stats.scores[s.key] || 0;
+    const color = s.key === stats.best_skill ? 'var(--success)' :
+                  s.key === stats.worst_skill ? 'var(--danger)' : 'var(--primary)';
+    return `
+      <div style="margin-bottom:12px">
+        <div class="flex items-center justify-between mb-4">
+          <span style="font-size:13px;color:var(--text-secondary)">${s.icon} ${s.label}</span>
+          <span style="font-size:13px;font-weight:600;color:var(--text-primary)">${score}%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width:${score}%;background:${color};transition:width 1s ease"></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderSkillRadar(stats) {
+  const ctx = document.getElementById('skillRadarChart');
+  if(!ctx) return;
+  new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: ['English', 'Aptitude', 'Reasoning', 'Programming', 'Typing', 'Verbal'],
+      datasets: [{
+        label: 'Skill Level',
+        data: [
+          stats.scores.english || 0,
+          stats.scores.aptitude || 0,
+          stats.scores.reasoning || 0,
+          stats.scores.programming || 0,
+          stats.scores.typing || 0,
+          stats.scores.verbal || 0
+        ],
+        backgroundColor: 'hsla(250, 84%, 60%, 0.2)',
+        borderColor: 'hsl(250, 84%, 60%)',
+        pointBackgroundColor: 'hsl(250, 84%, 60%)',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        r: {
+          angleLines: { color: 'rgba(255,255,255,0.1)' },
+          grid: { color: 'rgba(255,255,255,0.1)' },
+          pointLabels: { color: '#ccc', font: {size: 11} },
+          ticks: { display: false, max: 100, min: 0, stepSize: 20 }
+        }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+function renderStreakMatrix(activeDates) {
+  const container = document.getElementById('streak-matrix');
+  if(!container) return;
+  const days = 90;
+  const today = new Date();
+  let html = '';
+  for(let i = days-1; i >= 0; i--) {
+    let d = new Date(today);
+    d.setDate(d.getDate() - i);
+    // adjust for local timezone offset manually to avoid UTC date shift issues
+    const dateStr = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+    const isActive = activeDates.includes(dateStr);
+    const color = isActive ? 'var(--success)' : 'var(--bg-elevated)';
+    html += `<div style="width:14px;height:14px;border-radius:2px;background:${color}" title="${dateStr}"></div>`;
+  }
+  container.innerHTML = html;
+}
+
+function renderBadges(badges) {
+  const container = document.getElementById('badges-grid');
+  if (!badges || badges.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state" style="padding:20px;text-align:left">
+        <p class="text-muted">Complete activities to earn badges! 🏅</p>
+      </div>`;
+    return;
+  }
+  container.innerHTML = badges.map(b => `
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg-elevated);
+                border-radius:var(--radius-md);border:1px solid var(--border)">
+      <span style="font-size:24px">${b.icon}</span>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--text-primary)">${b.name}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${b.description}</div>
+      </div>
+    </div>`).join('');
+}
+
+async function loadTodayRoadmap() {
+  try {
+    const data = await apiCall('/api/roadmap/today');
+    const loadingEl = document.getElementById('progress-loading');
+    const noRoadmapEl = document.getElementById('no-roadmap');
+    const tasksEl = document.getElementById('tasks-list');
+    const progressSection = document.getElementById('progress-bar-section');
+
+    loadingEl.style.display = 'none';
+
+    if (!data.roadmap) {
+      noRoadmapEl.style.display = 'block';
+      document.getElementById('start-training-btn').href = '/roadmap';
+      return;
+    }
+
+    const roadmap = data.roadmap;
+    const tasks = roadmap.plan.tasks || [];
+
+    tasksEl.style.display = 'block';
+    progressSection.style.display = 'block';
+
+    const pct = roadmap.completion_percent;
+    document.getElementById('progress-pct').textContent = `${pct}%`;
+    document.getElementById('progress-bar').style.width = `${pct}%`;
+
+    tasksEl.innerHTML = tasks.slice(0, 5).map(task => {
+      const done = roadmap.completed_tasks.includes(task.id);
+      return `
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;
+                    border-bottom:1px solid var(--border)">
+          <div style="width:28px;height:28px;border-radius:50%;
+                      background:${done ? 'var(--success)' : 'var(--bg-elevated)'};
+                      display:flex;align-items:center;justify-content:center;
+                      flex-shrink:0;font-size:14px">
+            ${done ? '✓' : task.icon}
+          </div>
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:${done ? '400' : '600'};
+                        color:${done ? 'var(--text-muted)' : 'var(--text-primary)'};
+                        text-decoration:${done ? 'line-through' : 'none'}">
+              ${task.title}
+            </div>
+            <div style="font-size:12px;color:var(--text-muted)">${task.duration_minutes} min • ${task.subject}</div>
+          </div>
+          <a href="${task.link}" class="btn btn-sm btn-ghost" style="${done ? 'opacity:0.5' : ''}">
+            ${done ? 'Done' : 'Start →'}
+          </a>
+        </div>`;
+    }).join('');
+
+    if (tasks.length > 5) {
+      tasksEl.innerHTML += `<div class="text-center mt-12">
+        <a href="/roadmap" class="btn btn-ghost btn-sm">View all ${tasks.length} tasks</a>
+      </div>`;
+    }
+  } catch (e) {
+    document.getElementById('progress-loading').style.display = 'none';
+    document.getElementById('no-roadmap').style.display = 'block';
+  }
+}
+
+async function loadWeeklyCharts() {
+  try {
+    const data = await apiCall('/api/progress/weekly-chart');
+    const chartDefaults = {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#888' } },
+        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#888' }, min: 0, max: 100 },
+      }
+    };
+
+    new Chart(document.getElementById('weeklyQuizChart'), {
+      type: 'line',
+      data: {
+        labels: data.labels,
+        datasets: [{
+          data: data.quiz_scores,
+          borderColor: 'hsl(250, 84%, 60%)',
+          backgroundColor: 'hsla(250, 84%, 60%, 0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: 'hsl(250, 84%, 60%)',
+          pointRadius: 4,
+        }]
+      },
+      options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, max: 100 } } }
+    });
+
+    new Chart(document.getElementById('weeklyTypingChart'), {
+      type: 'bar',
+      data: {
+        labels: data.labels,
+        datasets: [{
+          data: data.wpm_values,
+          backgroundColor: 'hsla(165, 82%, 51%, 0.7)',
+          borderColor: 'hsl(165, 82%, 51%)',
+          borderWidth: 1,
+          borderRadius: 6,
+        }]
+      },
+      options: {
+        ...chartDefaults,
+        scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y, max: undefined, min: 0 } }
+      }
+    });
+  } catch (e) {
+    // Charts will be empty
+  }
+}
+
+async function generateReport() {
+  try {
+    const data = await apiCall('/api/progress/report');
+    showToast('Report generated!', 'success');
+    const blob = new Blob([data.report_markdown], {type: 'text/markdown'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = data.filename;
+    a.click();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function injectRoadmap() {
+  const jsonStr = prompt("Paste your Syllabus JSON:");
+  if(!jsonStr) return;
+  try {
+    const syllabus = JSON.parse(jsonStr);
+    await apiCall('/api/roadmap/inject', 'POST', { syllabus });
+    showToast('Syllabus injected successfully!', 'success');
+  } catch(e) { showToast('Invalid JSON or server error', 'error'); }
+}
+</script>
+{% endblock %}

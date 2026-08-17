@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Profile{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+  <h1 class="page-title">👤 My Profile</h1>
+  <p class="page-subtitle">Your learning identity, achievements and settings</p>
+</div>
+
+<div class="grid-2" style="gap:20px">
+  <!-- Profile Card -->
+  <div>
+    <div class="card mb-16 animate-in" style="text-align:center">
+      <div style="font-size:72px;margin-bottom:8px" id="profile-avatar">🎓</div>
+      <div style="display:flex;justify-content:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        {% for emoji in ['🎓','🚀','⭐','🧠','💻','🌟','🔥','🏆'] %}
+        <button onclick="setAvatar('{{ emoji }}')"
+                style="font-size:22px;padding:4px 6px;background:var(--bg-elevated);
+                       border-radius:var(--radius-sm);cursor:pointer;border:2px solid transparent;transition:all 0.2s"
+                class="avatar-btn">{{ emoji }}</button>
+        {% endfor %}
+      </div>
+      <div style="font-size:24px;font-weight:800;color:var(--text-primary)" id="profile-name">Student</div>
+      <div style="font-size:14px;color:var(--text-secondary);margin-top:4px" id="profile-goal">Loading...</div>
+      <div class="flex items-center justify-center gap-12 mt-16">
+        <div style="text-align:center">
+          <div style="font-size:22px;font-weight:700;color:var(--warning)" id="profile-streak">0</div>
+          <div style="font-size:12px;color:var(--text-muted)">🔥 Streak</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:22px;font-weight:700;color:var(--primary-light)" id="profile-xp">0</div>
+          <div style="font-size:12px;color:var(--text-muted)">⚡ XP</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:22px;font-weight:700;color:var(--accent)" id="profile-level">1</div>
+          <div style="font-size:12px;color:var(--text-muted)">🏅 Level</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:22px;font-weight:700;color:var(--success)" id="profile-day">1</div>
+          <div style="font-size:12px;color:var(--text-muted)">📅 Day</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Profile -->
+    <div class="card animate-in" style="animation-delay:0.1s">
+      <div class="card-title mb-16">✏️ Edit Profile</div>
+      <div class="form-group">
+        <label class="form-label">Your Name</label>
+        <input type="text" class="form-control" id="edit-name" placeholder="Enter your name" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Your Goal</label>
+        <input type="text" class="form-control" id="edit-goal" placeholder="What do you want to achieve?" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Daily Target (minutes)</label>
+        <div class="toggle-group">
+          <button class="toggle-btn" onclick="setTarget(30,this)">30</button>
+          <button class="toggle-btn active" onclick="setTarget(60,this)">60</button>
+          <button class="toggle-btn" onclick="setTarget(90,this)">90</button>
+          <button class="toggle-btn" onclick="setTarget(120,this)">120</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="saveProfile()">💾 Save Changes</button>
+    </div>
+
+    <!-- Level Progress -->
+    <div class="card mt-16 animate-in" style="animation-delay:0.15s">
+      <div class="card-title mb-16">⚡ Level Progress</div>
+      <div id="level-progress-display">
+        <div class="loading-overlay"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Badges -->
+  <div>
+    <div class="card animate-in" style="animation-delay:0.2s">
+      <div class="card-title mb-16">🏆 Achievements & Badges</div>
+      <div id="badges-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
+        <div class="loading-overlay" style="grid-column:1/-1"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let profileData = null;
+let currentTarget = 60;
+let currentAvatar = '🎓';
+
+async function loadProfile() {
+  try {
+    profileData = await apiCall('/api/profile/data');
+    renderProfile(profileData);
+  } catch (e) {
+    showToast('Could not load profile', 'error');
+  }
+}
+
+function renderProfile(data) {
+  const user = data.user;
+  const lp = data.level_progress;
+
+  // Update avatar
+  document.getElementById('profile-avatar').textContent = user.avatar || '🎓';
+  currentAvatar = user.avatar || '🎓';
+
+  // Stats
+  document.getElementById('profile-name').textContent = user.name;
+  document.getElementById('profile-goal').textContent = user.goal;
+  document.getElementById('profile-streak').textContent = user.streak;
+  document.getElementById('profile-xp').textContent = user.xp.toLocaleString();
+  document.getElementById('profile-level').textContent = user.level;
+  document.getElementById('profile-day').textContent = user.day_number;
+
+  // Edit fields
+  document.getElementById('edit-name').value = user.name;
+  document.getElementById('edit-goal').value = user.goal;
+  currentTarget = user.daily_target_minutes;
+
+  // Level progress
+  document.getElementById('level-progress-display').innerHTML = `
+    <div style="text-align:center;padding:16px;background:var(--gradient-primary);
+                border-radius:var(--radius-md);color:white;margin-bottom:16px">
+      <div style="font-size:36px;font-weight:900">Level ${lp.current_level}</div>
+      <div style="font-size:16px;opacity:0.8">${lp.level_name}</div>
+    </div>
+    <div class="flex items-center justify-between mb-8">
+      <span style="font-size:13px;color:var(--text-muted)">${lp.level_xp} / 500 XP</span>
+      <span style="font-size:13px;font-weight:600;color:var(--primary-light)">${lp.xp_to_next} XP to ${lp.next_level_name}</span>
+    </div>
+    <div class="progress-bar progress-bar-lg">
+      <div class="progress-fill" style="width:${lp.progress_percent}%"></div>
+    </div>
+    <div style="font-size:13px;color:var(--text-muted);text-align:center;margin-top:8px">
+      Total XP: ${user.xp.toLocaleString()}
+    </div>`;
+
+  // Badges
+  const badgesGrid = document.getElementById('badges-grid');
+  badgesGrid.innerHTML = data.all_badges.map(b => `
+    <div style="padding:14px;background:${b.earned?'var(--bg-elevated)':'var(--bg-card)'};
+                border:1px solid ${b.earned?'var(--primary)':'var(--border)'};
+                border-radius:var(--radius-md);text-align:center;opacity:${b.earned?'1':'0.45'};
+                transition:all 0.2s" title="${b.description}">
+      <div style="font-size:28px;margin-bottom:6px">${b.icon}</div>
+      <div style="font-size:12px;font-weight:700;color:var(--text-primary)">${b.name}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${b.description}</div>
+      ${b.earned ? '<div style="font-size:11px;color:var(--success);margin-top:4px">✓ Earned</div>'
+                 : '<div style="font-size:11px;color:var(--text-muted);margin-top:4px">🔒 Locked</div>'}
+    </div>`).join('');
+}
+
+function setAvatar(emoji) {
+  currentAvatar = emoji;
+  document.getElementById('profile-avatar').textContent = emoji;
+  document.querySelectorAll('.avatar-btn').forEach(b => {
+    b.style.borderColor = b.textContent === emoji ? 'var(--primary)' : 'transparent';
+  });
+}
+
+function setTarget(val, btn) {
+  currentTarget = val;
+  btn.closest('.toggle-group').querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function saveProfile() {
+  const name = document.getElementById('edit-name').value.trim();
+  const goal = document.getElementById('edit-goal').value.trim();
+  if (!name) { showToast('Name cannot be empty', 'warning'); return; }
+
+  try {
+    const data = await apiCall('/api/profile/update', 'POST', {
+      name, goal, daily_target_minutes: currentTarget, avatar: currentAvatar
+    });
+    document.getElementById('profile-name').textContent = data.user.name;
+    document.getElementById('profile-goal').textContent = data.user.goal;
+    document.getElementById('sidebar-username').textContent = data.user.name;
+    showToast('Profile saved! ✨', 'success');
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+loadProfile();
+</script>
+{% endblock %}

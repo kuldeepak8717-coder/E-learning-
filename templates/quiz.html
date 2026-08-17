@@ -1,0 +1,421 @@
+{% extends "base.html" %}
+{% block title %}Quiz{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+  <h1 class="page-title">📝 Quiz Center</h1>
+  <p class="page-subtitle">Test your knowledge with AI-generated questions — get instant explanations</p>
+</div>
+
+<!-- Setup Screen -->
+<div id="quiz-setup" class="animate-in">
+  <div class="grid-2" style="gap:24px;max-width:900px">
+    <!-- Quiz Config -->
+    <div class="card">
+      <h2 style="font-size:18px;font-weight:700;margin-bottom:20px;color:var(--text-primary)">⚙️ Configure Quiz</h2>
+
+      <div class="form-group">
+        <label class="form-label">Select Subject</label>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px" id="subject-grid">
+          {% for s in subjects %}
+          <button class="subject-btn" data-id="{{ s.id }}" onclick="selectSubject('{{ s.id }}')"
+                  style="padding:10px 12px;background:var(--bg-elevated);border:1px solid var(--border);
+                         border-radius:var(--radius-md);color:var(--text-secondary);cursor:pointer;
+                         font-family:inherit;font-size:13px;text-align:left;transition:all 0.2s;
+                         display:flex;align-items:center;gap:8px">
+            <span>{{ s.icon }}</span><span>{{ s.label }}</span>
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Difficulty</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active" onclick="setDifficulty('easy', this)">🟢 Easy</button>
+          <button class="toggle-btn" onclick="setDifficulty('medium', this)">🟡 Medium</button>
+          <button class="toggle-btn" onclick="setDifficulty('hard', this)">🔴 Hard</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Number of Questions</label>
+        <div class="toggle-group">
+          <button class="toggle-btn active" onclick="setCount(10, this)">10</button>
+          <button class="toggle-btn" onclick="setCount(20, this)">20</button>
+          <button class="toggle-btn" onclick="setCount(30, this)">30</button>
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-full btn-lg" onclick="startQuiz()" id="start-quiz-btn">
+        <i data-lucide="play"></i> Start Quiz
+      </button>
+    </div>
+
+    <!-- Recent Results -->
+    <div>
+      <div class="card mb-16">
+        <div class="card-title mb-16">📊 Recent Results</div>
+        <div id="recent-results">
+          <div class="loading-overlay"><div class="spinner"></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title mb-16">⚠️ Weak Areas</div>
+        <div id="weak-areas">
+          <div class="loading-overlay"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Quiz Screen -->
+<div id="quiz-screen" style="display:none" class="animate-in">
+  <div style="max-width:760px;margin:0 auto">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-20">
+      <div>
+        <div style="font-size:13px;color:var(--text-muted)" id="quiz-subject-label">—</div>
+        <div style="font-size:20px;font-weight:700" id="quiz-progress-label">Question 1 of 10</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px">
+        <div style="font-size:24px;font-weight:800;color:var(--warning)" id="quiz-timer">00:00</div>
+        <button class="btn btn-ghost btn-sm" onclick="endQuiz()">End Quiz</button>
+      </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="progress-bar mb-24">
+      <div class="progress-fill" id="quiz-progress-bar" style="width:0%"></div>
+    </div>
+
+    <!-- Question Card -->
+    <div class="card mb-20" id="question-card">
+      <div style="font-size:14px;font-weight:600;color:var(--primary-light);margin-bottom:12px" id="q-topic">—</div>
+      <div style="font-size:18px;font-weight:600;color:var(--text-primary);line-height:1.6;margin-bottom:24px" id="q-text">—</div>
+      <div id="options-grid" style="display:flex;flex-direction:column;gap:10px"></div>
+    </div>
+
+    <!-- Nav buttons -->
+    <div class="flex justify-between">
+      <button class="btn btn-ghost" onclick="prevQuestion()" id="prev-btn" disabled>← Previous</button>
+      <button class="btn btn-primary" onclick="nextQuestion()" id="next-btn">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Results Screen -->
+<div id="results-screen" style="display:none" class="animate-in">
+  <div style="max-width:760px;margin:0 auto">
+    <!-- Score Hero -->
+    <div class="card mb-20" style="text-align:center;background:var(--gradient-primary);border:none;color:white;padding:32px">
+      <div style="font-size:64px;font-weight:900;line-height:1" id="result-score">0</div>
+      <div style="font-size:18px;opacity:0.8;margin-top:4px" id="result-out-of">out of 10</div>
+      <div style="font-size:14px;opacity:0.7;margin-top:12px" id="result-accuracy">Accuracy: 0%</div>
+      <div style="font-size:14px;opacity:0.7" id="result-time">Time: 0:00</div>
+      <div style="font-size:28px;margin-top:12px" id="result-emoji">🎯</div>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="flex gap-12 mb-20" style="flex-wrap:wrap">
+      <button class="btn btn-primary btn-lg flex-1" onclick="restartQuiz()">🔄 Try Again</button>
+      <button class="btn btn-secondary btn-lg flex-1" onclick="practiceWeak()">⚠️ Practice Weak Areas</button>
+      <button class="btn btn-ghost btn-lg flex-1" onclick="backToSetup()">← New Quiz</button>
+    </div>
+
+    <!-- Question Review -->
+    <div class="card">
+      <div class="card-title mb-20">📋 Answer Review</div>
+      <div id="answers-review"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let quizState = {
+  questions: [], answers: [], currentIndex: 0,
+  subject: 'mixed', difficulty: 'easy', count: 10,
+  startTime: null, timer: null
+};
+
+// ── Setup ───────────────────────────────────────
+function selectSubject(id) {
+  quizState.subject = id;
+  document.querySelectorAll('.subject-btn').forEach(b => {
+    b.style.borderColor = b.dataset.id === id ? 'var(--primary)' : 'var(--border)';
+    b.style.color = b.dataset.id === id ? 'var(--primary-light)' : 'var(--text-secondary)';
+    b.style.background = b.dataset.id === id ? 'var(--primary-glow)' : 'var(--bg-elevated)';
+  });
+}
+
+function setDifficulty(d, btn) {
+  quizState.difficulty = d;
+  document.querySelectorAll('.toggle-group .toggle-btn').forEach(b => {
+    if (b.closest('#quiz-setup div:nth-child(2) .toggle-group')) b.classList.remove('active');
+  });
+  btn.closest('.toggle-group').querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function setCount(c, btn) {
+  quizState.count = c;
+  btn.closest('.toggle-group').querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function startQuiz() {
+  const btn = document.getElementById('start-quiz-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Generating...';
+
+  try {
+    const data = await apiCall('/api/quiz/generate', 'POST', {
+      subject: quizState.subject,
+      difficulty: quizState.difficulty,
+      count: quizState.count,
+    });
+    quizState.questions = data.questions;
+    quizState.answers = new Array(data.questions.length).fill(null);
+    quizState.currentIndex = 0;
+    quizState.startTime = Date.now();
+
+    document.getElementById('quiz-setup').style.display = 'none';
+    document.getElementById('quiz-screen').style.display = 'block';
+
+    startTimer();
+    renderQuestion();
+  } catch (e) {
+    showToast('Failed to generate quiz: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i data-lucide="play"></i> Start Quiz';
+    lucide.createIcons();
+  }
+}
+
+// ── Timer ──────────────────────────────────────
+function startTimer() {
+  quizState.startTime = Date.now();
+  quizState.timer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - quizState.startTime) / 1000);
+    const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+    const s = (elapsed % 60).toString().padStart(2, '0');
+    document.getElementById('quiz-timer').textContent = `${m}:${s}`;
+  }, 1000);
+}
+
+// ── Render Question ────────────────────────────
+function renderQuestion() {
+  const q = quizState.questions[quizState.currentIndex];
+  const total = quizState.questions.length;
+  const i = quizState.currentIndex;
+
+  document.getElementById('quiz-subject-label').textContent = `${quizState.subject.toUpperCase()} • ${quizState.difficulty.toUpperCase()}`;
+  document.getElementById('quiz-progress-label').textContent = `Question ${i+1} of ${total}`;
+  document.getElementById('quiz-progress-bar').style.width = `${((i+1)/total)*100}%`;
+  document.getElementById('q-topic').textContent = `📌 ${q.topic || quizState.subject}`;
+  document.getElementById('q-text').textContent = q.question;
+
+  const optionsEl = document.getElementById('options-grid');
+  const selectedAnswer = quizState.answers[i];
+
+  optionsEl.innerHTML = q.options.map((opt, oi) => {
+    let style = `padding:14px 16px;background:var(--bg-elevated);border:1px solid var(--border);
+                 border-radius:var(--radius-md);cursor:pointer;font-size:14px;font-weight:500;
+                 text-align:left;color:var(--text-primary);font-family:inherit;transition:all 0.2s;
+                 display:flex;align-items:center;gap:12px`;
+    const label = ['A','B','C','D'][oi];
+    return `<button onclick="selectAnswer(${oi})" id="opt-${oi}"
+              style="${style}" class="option-btn" data-index="${oi}">
+              <span style="width:28px;height:28px;background:var(--bg-hover);border-radius:50%;
+                           display:inline-flex;align-items:center;justify-content:center;
+                           font-weight:700;font-size:13px;flex-shrink:0">${label}</span>
+              ${opt}
+            </button>`;
+  }).join('');
+
+  // Restore selected answer if exists
+  if (selectedAnswer !== null) {
+    const btn = document.getElementById(`opt-${selectedAnswer}`);
+    if (btn) btn.style.borderColor = 'var(--primary)';
+  }
+
+  // Nav buttons
+  document.getElementById('prev-btn').disabled = i === 0;
+  document.getElementById('next-btn').textContent = i === total - 1 ? 'Submit Quiz' : 'Next →';
+}
+
+function selectAnswer(optionIndex) {
+  quizState.answers[quizState.currentIndex] = optionIndex;
+  document.querySelectorAll('.option-btn').forEach((b, i) => {
+    b.style.borderColor = i === optionIndex ? 'var(--primary)' : 'var(--border)';
+    b.style.background = i === optionIndex ? 'var(--primary-glow)' : 'var(--bg-elevated)';
+  });
+}
+
+function nextQuestion() {
+  if (quizState.currentIndex < quizState.questions.length - 1) {
+    quizState.currentIndex++;
+    renderQuestion();
+  } else {
+    endQuiz();
+  }
+}
+
+function prevQuestion() {
+  if (quizState.currentIndex > 0) {
+    quizState.currentIndex--;
+    renderQuestion();
+  }
+}
+
+async function endQuiz() {
+  clearInterval(quizState.timer);
+  const elapsed = Math.floor((Date.now() - quizState.startTime) / 1000);
+
+  const answersPayload = quizState.answers.map((selected, qi) => ({
+    question_index: qi,
+    selected: selected,
+    correct: quizState.questions[qi].correct,
+  }));
+
+  try {
+    const result = await apiCall('/api/quiz/submit', 'POST', {
+      subject: quizState.subject,
+      difficulty: quizState.difficulty,
+      answers: answersPayload,
+      questions: quizState.questions,
+      time_taken: elapsed,
+    });
+
+    if (result.new_badges.length > 0) {
+      showToast(`🏆 New badge earned!`, 'success');
+    }
+    if (result.xp_result.level_up) {
+      showToast(`🎉 Level Up! You reached Level ${result.xp_result.new_level}!`, 'success', 5000);
+    }
+
+    document.getElementById('quiz-screen').style.display = 'none';
+    document.getElementById('results-screen').style.display = 'block';
+    renderResults(result, elapsed);
+  } catch (e) {
+    showToast('Could not submit quiz: ' + e.message, 'error');
+  }
+}
+
+function renderResults(result, elapsed) {
+  const pct = result.accuracy;
+  const emoji = pct >= 90 ? '🏆' : pct >= 70 ? '🌟' : pct >= 50 ? '👍' : '📚';
+  document.getElementById('result-score').textContent = result.score;
+  document.getElementById('result-out-of').textContent = `out of ${result.total}`;
+  document.getElementById('result-accuracy').textContent = `Accuracy: ${pct}%`;
+  const m = Math.floor(elapsed / 60), s = elapsed % 60;
+  document.getElementById('result-time').textContent = `Time: ${m}:${s.toString().padStart(2,'0')}`;
+  document.getElementById('result-emoji').textContent = emoji;
+
+  // Answer review
+  const reviewEl = document.getElementById('answers-review');
+  reviewEl.innerHTML = quizState.questions.map((q, i) => {
+    const selected = quizState.answers[i];
+    const correct = q.correct;
+    const isCorrect = selected === correct;
+    return `
+      <div style="padding:16px;background:${isCorrect ? 'hsla(142,71%,45%,0.08)' : 'hsla(0,84%,60%,0.08)'};
+                  border:1px solid ${isCorrect ? 'var(--success)' : 'var(--danger)'};
+                  border-radius:var(--radius-md);margin-bottom:12px">
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:6px">Q${i+1} • ${q.topic || ''}</div>
+        <div style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:10px">${q.question}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          ${q.options.map((opt, oi) => `
+            <span style="padding:4px 12px;border-radius:var(--radius-full);font-size:13px;
+                         background:${oi === correct ? 'hsla(142,71%,45%,0.2)' : oi === selected && !isCorrect ? 'hsla(0,84%,60%,0.2)' : 'var(--bg-elevated)'};
+                         color:${oi === correct ? 'var(--success)' : oi === selected && !isCorrect ? 'var(--danger)' : 'var(--text-secondary)'}">
+              ${['A','B','C','D'][oi]}. ${opt}
+              ${oi === correct ? ' ✓' : oi === selected && !isCorrect ? ' ✗' : ''}
+            </span>`).join('')}
+        </div>
+        <div style="font-size:13px;color:var(--text-secondary);background:var(--bg-elevated);
+                    padding:10px;border-radius:var(--radius-sm)">
+          💡 ${q.explanation}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function restartQuiz() {
+  document.getElementById('results-screen').style.display = 'none';
+  document.getElementById('quiz-screen').style.display = 'block';
+  quizState.answers = new Array(quizState.questions.length).fill(null);
+  quizState.currentIndex = 0;
+  startTimer();
+  renderQuestion();
+}
+
+function practiceWeak() {
+  quizState.subject = 'mixed';
+  backToSetup();
+  showToast('Practice mode: Mixed questions from weak areas', 'info');
+}
+
+function backToSetup() {
+  document.getElementById('results-screen').style.display = 'none';
+  document.getElementById('quiz-screen').style.display = 'none';
+  document.getElementById('quiz-setup').style.display = 'block';
+  loadRecentResults();
+}
+
+// ── Load recent data ────────────────────────────
+async function loadRecentResults() {
+  try {
+    const history = await apiCall('/api/quiz/history');
+    const el = document.getElementById('recent-results');
+    if (!history.length) {
+      el.innerHTML = '<p class="text-muted text-small">No quizzes taken yet. Start your first quiz!</p>';
+    } else {
+      el.innerHTML = history.slice(0, 5).map(r => `
+        <div style="display:flex;align-items:center;justify-content:space-between;
+                    padding:8px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:13px;font-weight:600;text-transform:capitalize">${r.subject}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${r.date.substring(0,10)}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:15px;font-weight:700;color:${r.accuracy>=70?'var(--success)':'var(--danger)'}">
+              ${r.score}/${r.total}
+            </div>
+            <div style="font-size:11px;color:var(--text-muted)">${r.accuracy}%</div>
+          </div>
+        </div>`).join('');
+    }
+  } catch {}
+
+  try {
+    const weak = await apiCall('/api/quiz/weak-areas');
+    const el = document.getElementById('weak-areas');
+    if (!weak.length) {
+      el.innerHTML = '<p class="text-muted text-small">Take quizzes to discover your weak areas!</p>';
+    } else {
+      el.innerHTML = weak.slice(0, 5).map(w => `
+        <div style="display:flex;align-items:center;justify-content:space-between;
+                    padding:6px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:13px;color:var(--text-primary)">${w.topic}</span>
+          <span class="badge badge-warning">${w.count} missed</span>
+        </div>`).join('');
+    }
+  } catch {}
+}
+
+// Pre-select english by default
+selectSubject('english');
+loadRecentResults();
+
+// Handle URL param for subject
+const urlParams = new URLSearchParams(window.location.search);
+const subjectParam = urlParams.get('subject');
+if (subjectParam) selectSubject(subjectParam);
+</script>
+{% endblock %}

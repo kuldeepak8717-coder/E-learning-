@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}Aptitude{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+  <h1 class="page-title">➗ Aptitude</h1>
+  <p class="page-subtitle">Formula → Easy explanation → Solved example → Practice → Timed quiz</p>
+</div>
+
+<!-- Formula Sheet Button -->
+<div class="flex gap-12 mb-20">
+  <button class="btn btn-secondary" onclick="showFormulaSheet()" id="formula-btn">
+    <i data-lucide="scroll-text"></i> Formula Sheet
+  </button>
+</div>
+
+<!-- Formula Sheet Modal -->
+<div id="formula-modal" style="display:none;position:fixed;inset:0;z-index:200;
+     background:hsla(0,0%,0%,0.6);backdrop-filter:blur(4px)" onclick="hideFormulas(event)">
+  <div style="max-width:600px;margin:40px auto;background:var(--bg-surface);border-radius:var(--radius-xl);
+              padding:28px;max-height:80vh;overflow-y:auto;border:1px solid var(--border)" onclick="event.stopPropagation()">
+    <div class="flex items-center justify-between mb-20">
+      <h2 style="font-size:20px;font-weight:700">📐 Formula Sheet</h2>
+      <button onclick="hideFormulas()" class="btn btn-ghost btn-sm">✕ Close</button>
+    </div>
+    <div id="formula-list"><div class="loading-overlay"><div class="spinner"></div></div></div>
+  </div>
+</div>
+
+<div class="grid-2" style="grid-template-columns:280px 1fr;gap:20px;align-items:start">
+  <!-- Topics -->
+  <div class="card animate-in" style="position:sticky;top:80px">
+    <div class="card-title mb-12">Topics</div>
+    {% for t in topics %}
+    <button class="nav-item topic-btn" style="width:100%;cursor:pointer;border:none;font-family:inherit"
+            data-id="{{ t.id }}" onclick="selectTopic('{{ t.id }}', '{{ t.label }}', '{{ t.formula }}')">
+      <span>{{ t.icon }}</span>
+      <div style="text-align:left">
+        <div style="font-size:13px;font-weight:600">{{ t.label }}</div>
+        <div style="font-size:11px;color:var(--text-muted);white-space:normal">{{ t.formula }}</div>
+      </div>
+    </button>
+    {% endfor %}
+  </div>
+
+  <!-- Content -->
+  <div>
+    <div class="card animate-in" id="topic-area">
+      <div class="empty-state">
+        <div class="empty-state-icon">➗</div>
+        <h3>Select a Topic</h3>
+        <p>Choose an aptitude topic to see formulas, examples, and practice questions.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentTopic = null;
+let qAnswers = [];
+let qList = [];
+
+async function showFormulaSheet() {
+  document.getElementById('formula-modal').style.display = 'block';
+  try {
+    const formulas = await apiCall('/api/aptitude/formulas');
+    const list = document.getElementById('formula-list');
+    list.innerHTML = formulas.map(f => `
+      <div style="padding:12px;background:var(--bg-elevated);border-radius:var(--radius-md);margin-bottom:10px">
+        <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:4px">
+          ${f.icon} ${f.topic}
+        </div>
+        <div style="font-size:14px;color:var(--primary-light);font-family:var(--font-mono)">${f.formula}</div>
+      </div>`).join('');
+  } catch {}
+}
+
+function hideFormulas(e) {
+  if (!e || e.target === document.getElementById('formula-modal') || !e.target) {
+    document.getElementById('formula-modal').style.display = 'none';
+  }
+}
+
+function selectTopic(id, label, formula) {
+  currentTopic = { id, label, formula };
+  document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`[data-id="${id}"]`)?.classList.add('active');
+  loadContent(label, formula);
+}
+
+async function loadContent(label, formula) {
+  const area = document.getElementById('topic-area');
+  area.innerHTML = `<div class="loading-overlay"><div class="spinner-lg spinner"></div>
+    <span>Loading ${label}...</span></div>`;
+
+  try {
+    const notes = await apiCall('/api/aptitude/notes', 'POST', { topic: label });
+    renderContent(notes, label, formula);
+  } catch (e) {
+    area.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+  }
+}
+
+function renderContent(notes, label, formula) {
+  const area = document.getElementById('topic-area');
+  area.innerHTML = `
+    <div class="animate-in">
+      <div class="flex items-center justify-between mb-20">
+        <h2 style="font-size:22px;font-weight:800">${notes.title}</h2>
+        <div class="flex gap-8">
+          <select class="form-control" style="width:120px" id="diff-sel">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+          <button class="btn btn-primary" onclick="loadPractice('${label}')">Practice</button>
+        </div>
+      </div>
+
+      <!-- Formula Box -->
+      <div class="card mb-16" style="background:var(--gradient-primary);border:none;color:white">
+        <div style="font-size:12px;font-weight:700;opacity:0.8;margin-bottom:8px">📐 KEY FORMULA</div>
+        <div style="font-size:18px;font-weight:700;font-family:var(--font-mono)">${formula}</div>
+      </div>
+
+      <div class="card mb-16" style="background:hsla(250,84%,60%,0.08);border-color:var(--primary)">
+        <div style="font-size:12px;font-weight:700;color:var(--primary-light);margin-bottom:8px">📖 SIMPLE EXPLANATION</div>
+        <p style="font-size:15px;line-height:1.7">${notes.simple_explanation}</p>
+      </div>
+
+      ${notes.hindi_meaning ? `<div class="card mb-16" style="background:hsla(38,92%,58%,0.08);border-color:var(--warning)">
+        <div style="font-size:12px;font-weight:700;color:var(--warning);margin-bottom:8px">🇮🇳 HINDI EXPLANATION</div>
+        <p style="font-size:14px;line-height:1.7">${notes.hindi_meaning}</p>
+      </div>` : ''}
+
+      ${notes.examples.map(ex => `
+        <div class="card mb-16" style="border-left:3px solid var(--accent)">
+          <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">💡 ${ex.title}</div>
+          <div style="font-size:14px;line-height:1.8;background:var(--bg-elevated);
+                      padding:12px;border-radius:var(--radius-sm)">${ex.content}</div>
+        </div>`).join('')}
+
+      ${notes.common_mistakes.length ? `<div class="card mb-16" style="border-left:3px solid var(--danger)">
+        <div style="font-size:12px;font-weight:700;color:var(--danger);margin-bottom:10px">⚠️ COMMON MISTAKES</div>
+        ${notes.common_mistakes.map(m => `<div style="padding:6px 0;border-bottom:1px solid var(--border);
+          font-size:14px;color:var(--text-primary)">✗ ${m}</div>`).join('')}
+      </div>` : ''}
+
+      <!-- Practice Section -->
+      <div id="practice-section" style="display:none"></div>
+    </div>`;
+}
+
+async function loadPractice(label) {
+  const diff = document.getElementById('diff-sel')?.value || 'medium';
+  const section = document.getElementById('practice-section');
+  section.style.display = 'block';
+  section.innerHTML = `<div class="loading-overlay"><div class="spinner"></div> Generating questions...</div>`;
+  section.scrollIntoView({ behavior: 'smooth' });
+
+  try {
+    const data = await apiCall('/api/aptitude/quiz', 'POST', { topic: label, difficulty: diff, count: 5 });
+    qList = data.questions;
+    qAnswers = new Array(qList.length).fill(null);
+    section.innerHTML = `<div class="card">
+      <div class="card-title mb-16">📝 Practice Questions</div>
+      ${qList.map((q, qi) => `
+        <div style="margin-bottom:20px;padding:16px;background:var(--bg-elevated);border-radius:var(--radius-md)">
+          <div style="font-size:15px;font-weight:600;margin-bottom:12px">Q${qi+1}. ${q.question}</div>
+          ${q.options.map((opt, oi) => `
+            <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin-bottom:6px;
+                          background:var(--bg-card);border-radius:var(--radius-sm);cursor:pointer;
+                          border:1px solid var(--border)" id="ao-${qi}-${oi}">
+              <input type="radio" name="aq${qi}" value="${oi}" onchange="qAnswers[${qi}]=${oi}"
+                     style="accent-color:var(--primary)">
+              <span style="font-size:14px">${['A','B','C','D'][oi]}. ${opt}</span>
+            </label>`).join('')}
+        </div>`).join('')}
+      <button class="btn btn-primary btn-full" onclick="submitAptitudeQuiz()">Submit Answers</button>
+      <div id="aptitude-result" style="margin-top:16px"></div>
+    </div>`;
+  } catch (e) {
+    section.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+  }
+}
+
+function submitAptitudeQuiz() {
+  let score = 0;
+  qList.forEach((q, qi) => {
+    const sel = qAnswers[qi], cor = q.correct;
+    if (sel === cor) score++;
+    q.options.forEach((_, oi) => {
+      const lbl = document.getElementById(`ao-${qi}-${oi}`);
+      if (lbl) {
+        if (oi === cor) lbl.style.borderColor = 'var(--success)';
+        if (oi === sel && oi !== cor) lbl.style.borderColor = 'var(--danger)';
+      }
+    });
+  });
+  const pct = Math.round((score/qList.length)*100);
+  document.getElementById('aptitude-result').innerHTML = `
+    <div style="text-align:center;padding:20px;background:var(--bg-elevated);border-radius:var(--radius-md)">
+      <div style="font-size:32px;font-weight:800;color:${pct>=70?'var(--success)':'var(--danger)'}">${score}/${qList.length}</div>
+      <div>${pct>=70?'Well done! 🎉':'Review the formulas and try again 📚'}</div>
+    </div>
+    ${qList.map((q,qi)=>`<div style="margin-top:8px;padding:10px;background:var(--bg-elevated);border-radius:var(--radius-sm)">
+      <div style="font-size:13px;font-weight:600">Q${qi+1}: ${q.question}</div>
+      <div style="font-size:13px;color:var(--success)">✓ ${q.options[q.correct]}</div>
+      <div style="font-size:12px;color:var(--text-muted)">💡 ${q.explanation}</div>
+    </div>`).join('')}`;
+  document.querySelectorAll('[name^=aq]').forEach(r=>r.disabled=true);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const firstBtn = document.querySelector('.topic-btn');
+  if (firstBtn) firstBtn.click();
+});
+</script>
+{% endblock %}

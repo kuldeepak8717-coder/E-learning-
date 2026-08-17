@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}Logical Reasoning{% endblock %}
+
+{% block content %}
+<div class="page-header animate-in">
+  <h1 class="page-title">🧠 Logical Reasoning</h1>
+  <p class="page-subtitle">Master reasoning patterns — concept, examples, practice, quiz</p>
+</div>
+
+<div class="grid-2" style="grid-template-columns:280px 1fr;gap:20px;align-items:start">
+  <!-- Topics List -->
+  <div class="card animate-in" style="position:sticky;top:80px">
+    <div class="card-title mb-12">Topics</div>
+    {% for t in topics %}
+    <button class="nav-item topic-btn" style="width:100%;cursor:pointer;border:none;font-family:inherit"
+            data-id="{{ t.id }}" onclick="selectTopic('{{ t.id }}', '{{ t.label }}')">
+      <span>{{ t.icon }}</span>
+      <div style="text-align:left">
+        <div style="font-size:13px;font-weight:600">{{ t.label }}</div>
+        <div style="font-size:11px;color:var(--text-muted)">{{ t.description }}</div>
+      </div>
+    </button>
+    {% endfor %}
+  </div>
+
+  <!-- Content Area -->
+  <div>
+    <div class="card animate-in" style="animation-delay:0.1s" id="topic-area">
+      <div class="empty-state">
+        <div class="empty-state-icon">🧠</div>
+        <h3>Select a Topic</h3>
+        <p>Click a topic on the left to load concept notes and practice questions.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentTopic = null;
+let quizQuestions = [];
+let quizAnswers = [];
+
+function selectTopic(id, label) {
+  currentTopic = { id, label };
+  document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`[data-id="${id}"]`)?.classList.add('active');
+  loadTopicContent(id, label);
+}
+
+async function loadTopicContent(id, label) {
+  const area = document.getElementById('topic-area');
+  area.innerHTML = `<div class="loading-overlay"><div class="spinner-lg spinner"></div>
+    <span>Loading ${label}...</span></div>`;
+
+  try {
+    const notes = await apiCall('/api/reasoning/notes', 'POST', { topic: label });
+    renderContent(notes, id, label);
+  } catch (e) {
+    area.innerHTML = `<div class="alert alert-danger">Could not load notes: ${e.message}</div>`;
+  }
+}
+
+function renderContent(notes, id, label) {
+  const area = document.getElementById('topic-area');
+  area.innerHTML = `
+    <div class="animate-in">
+      <div class="flex items-center justify-between mb-20">
+        <h2 style="font-size:22px;font-weight:800">${notes.title}</h2>
+        <div class="flex gap-8">
+          <select class="form-control" style="width:120px" id="difficulty-sel">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+          <button class="btn btn-primary" onclick="startPractice('${label}')">
+            Practice →
+          </button>
+        </div>
+      </div>
+
+      <div class="card mb-16" style="background:hsla(250,84%,60%,0.08);border-color:var(--primary)">
+        <div style="font-size:12px;font-weight:700;color:var(--primary-light);margin-bottom:8px">📖 CONCEPT</div>
+        <p style="font-size:15px;line-height:1.7">${notes.simple_explanation}</p>
+      </div>
+
+      ${notes.hindi_meaning ? `<div class="card mb-16" style="background:hsla(38,92%,58%,0.08);border-color:var(--warning)">
+        <div style="font-size:12px;font-weight:700;color:var(--warning);margin-bottom:8px">🇮🇳 HINDI EXPLANATION</div>
+        <p style="font-size:14px;line-height:1.7">${notes.hindi_meaning}</p>
+      </div>` : ''}
+
+      <div class="card mb-16">
+        <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:12px">⭐ KEY POINTS</div>
+        ${notes.key_points.map(p => `<div style="padding:8px 0;border-bottom:1px solid var(--border);
+          font-size:14px;display:flex;gap:8px"><span style="color:var(--accent)">✓</span>${p}</div>`).join('')}
+      </div>
+
+      ${notes.examples.map(ex => `
+        <div class="card mb-16" style="border-left:3px solid var(--info)">
+          <div style="font-size:13px;font-weight:700;color:var(--info);margin-bottom:8px">💡 ${ex.title}</div>
+          <div style="font-size:14px;line-height:1.7;font-family:var(--font-mono);
+                      background:var(--bg-elevated);padding:12px;border-radius:var(--radius-sm)">${ex.content}</div>
+        </div>`).join('')}
+
+      <!-- Quiz Section -->
+      <div class="card" id="quiz-section" style="display:none">
+        <div class="card-title mb-16">📝 Practice Questions</div>
+        <div id="quiz-container"></div>
+        <div id="quiz-result" style="display:none"></div>
+      </div>
+    </div>`;
+}
+
+async function startPractice(label) {
+  const difficulty = document.getElementById('difficulty-sel')?.value || 'medium';
+  const quizSection = document.getElementById('quiz-section');
+  const container = document.getElementById('quiz-container');
+
+  quizSection.style.display = 'block';
+  container.innerHTML = `<div class="loading-overlay"><div class="spinner"></div> Generating questions...</div>`;
+  quizSection.scrollIntoView({ behavior: 'smooth' });
+
+  try {
+    const data = await apiCall('/api/reasoning/quiz', 'POST', {
+      topic: label, difficulty, count: 5
+    });
+    quizQuestions = data.questions;
+    quizAnswers = new Array(quizQuestions.length).fill(null);
+    renderQuiz();
+  } catch (e) {
+    container.innerHTML = `<div class="alert alert-danger">Could not generate questions: ${e.message}</div>`;
+  }
+}
+
+function renderQuiz() {
+  const container = document.getElementById('quiz-container');
+  container.innerHTML = quizQuestions.map((q, qi) => `
+    <div style="margin-bottom:20px;padding:16px;background:var(--bg-elevated);border-radius:var(--radius-md)">
+      <div style="font-size:15px;font-weight:600;margin-bottom:12px;color:var(--text-primary)">
+        Q${qi+1}. ${q.question}
+      </div>
+      ${q.options.map((opt, oi) => `
+        <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin-bottom:6px;
+                      background:var(--bg-card);border-radius:var(--radius-sm);cursor:pointer;
+                      border:1px solid var(--border);transition:all 0.2s" id="qo-${qi}-${oi}">
+          <input type="radio" name="q${qi}" value="${oi}" onchange="selectQuizAnswer(${qi},${oi})"
+                 style="accent-color:var(--primary)">
+          <span style="font-size:14px">${['A','B','C','D'][oi]}. ${opt}</span>
+        </label>`).join('')}
+    </div>`).join('') +
+    `<button class="btn btn-primary btn-full" onclick="submitQuiz()">Submit & See Answers</button>`;
+}
+
+function selectQuizAnswer(qi, oi) {
+  quizAnswers[qi] = oi;
+}
+
+function submitQuiz() {
+  let score = 0;
+  quizQuestions.forEach((q, qi) => {
+    const selected = quizAnswers[qi];
+    const correct = q.correct;
+    const isCorrect = selected === correct;
+    if (isCorrect) score++;
+
+    q.options.forEach((_, oi) => {
+      const label = document.getElementById(`qo-${qi}-${oi}`);
+      if (!label) return;
+      if (oi === correct) label.style.background = 'hsla(142,71%,45%,0.15)';
+      if (oi === selected && !isCorrect) label.style.background = 'hsla(0,84%,60%,0.15)';
+    });
+  });
+
+  const resultEl = document.getElementById('quiz-result');
+  resultEl.style.display = 'block';
+  const pct = Math.round((score / quizQuestions.length) * 100);
+  resultEl.innerHTML = `
+    <div style="margin-top:16px;padding:16px;background:${pct>=70?'hsla(142,71%,45%,0.1)':'hsla(0,84%,60%,0.1)'};
+                border-radius:var(--radius-md);text-align:center">
+      <div style="font-size:32px;font-weight:800;color:${pct>=70?'var(--success)':'var(--danger)'}">${score}/${quizQuestions.length}</div>
+      <div style="font-size:14px;color:var(--text-secondary)">${pct>=70?'Great job! 🌟':'Keep practicing! 📚'}</div>
+    </div>
+    ${quizQuestions.map((q,qi) => `
+      <div style="margin-top:10px;padding:10px;background:var(--bg-elevated);border-radius:var(--radius-sm)">
+        <div style="font-size:13px;font-weight:600;margin-bottom:6px">Q${qi+1}: ${q.question}</div>
+        <div style="font-size:13px;color:var(--success)">✓ ${q.options[q.correct]}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">💡 ${q.explanation}</div>
+      </div>`).join('')}`;
+
+  document.querySelectorAll('[name^=q]').forEach(r => r.disabled = true);
+}
+
+// Auto-select first topic
+document.addEventListener('DOMContentLoaded', () => {
+  const firstBtn = document.querySelector('.topic-btn');
+  if (firstBtn) firstBtn.click();
+});
+</script>
+{% endblock %}
